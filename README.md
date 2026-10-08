@@ -5,7 +5,7 @@ devices. It reconnects after device/network outages, keeps logs across container
 investigate intermittent crashes and reboots after the fact (SQLite storage, retention, export tarballs,
 sanitized configuration snapshots, optional read-only web UI).
 
-* Pinned ESPHome version: **2025.5.0** (`requirements.txt`). The option mapping to `esphome logs` was
+* Pinned ESPHome version: **2025.8.1** (`requirements.txt`). The option mapping to `esphome logs` was
   verified against that version's `esphome logs --help` and is checked by a test.
 * No Home Assistant, Docker socket or systemd required. Explicit IP targets work without mDNS.
 
@@ -64,7 +64,7 @@ Note that the `esphome logs` CLI only accepts MQTT credentials as command-line a
 
 ### `esphome logs` options (backend `cli`)
 
-`esphome logs --help` in ESPHome 2025.5.0 offers exactly these options; all are configurable under
+`esphome logs --help` in ESPHome 2025.8.1 offers exactly these options; all are configurable under
 `logs:` (per device or in `defaults`, except `device` and `reset`, which are per device only):
 
 | YAML (`logs.`) | CLI argument | Notes |
@@ -75,7 +75,7 @@ Note that the `esphome logs` CLI only accepts MQTT credentials as command-line a
 | `mqtt_password` | `--password` | secret reference |
 | `client_id` | `--client-id` | |
 | `reset` | `--reset` | **Disruptive** (resets the device before serial logging). Per-device opt-in only, never default, rejected in `defaults`. |
-| `states` | `--states/--no-states` | **Not offered by 2025.5.0**; setting it is a validation error (kept so it can be enabled on upgrade). |
+| `states` | `--states/--no-states` | **Not offered by 2025.8.1**; setting it is a validation error (kept so it can be enabled on upgrade). |
 | `extra_args` | verbatim | Pass-through for future/rare flags; only `--flag` / `--flag=value` forms. Managed flags (the ones above, `--help`, config/output/log-file/substitution/verbosity options, and any unambiguous abbreviation of them) and positional values are rejected. |
 
 Also `substitutions: {k: v}` (→ `esphome -s k v`). The command is always
@@ -96,7 +96,7 @@ session left open by a crash/kill is closed with reason `collector_crashed_or_ki
 
 ### Discovery (optional)
 
-`discovery.enabled: true` browses mDNS (`_esphomelib._tcp.local.`) with zeroconf. (ESPHome 2025.5.0's
+`discovery.enabled: true` browses mDNS (`_esphomelib._tcp.local.`) with zeroconf. (ESPHome 2025.8.1's
 `esphome discover` is not a reliable discovery mechanism, hence zeroconf directly.) Discovery must be
 restricted: `names`, `name_prefixes` and/or `exclude_names`, or an explicit `allow_all: true`.
 Discovered devices that match an explicit target by name, `esphome_name` or address are dropped
