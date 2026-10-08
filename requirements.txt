@@ -1,0 +1,6 @@
+# Pinned runtime dependencies. ESPHome 2025.8.1 is the supported version:
+# the `esphome logs` option mapping is verified against its --help output.
+esphome==2025.8.1
+aioesphomeapi==39.0.0
+zeroconf==0.147.0
+PyYAML==6.0.2

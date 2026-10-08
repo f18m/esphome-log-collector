@@ -1,0 +1,34 @@
+# Copy to docker-compose.yml. Build with `docker compose build`.
+services:
+  esphome-log-collector:
+    build: .
+    image: esphome-log-collector:0.1.0
+    init: true                    # reaps esphome child processes
+    restart: unless-stopped
+    stop_grace_period: 30s        # SIGTERM -> graceful shutdown, then SIGKILL
+    # Needed only for mDNS discovery / resolving <name>.local. Explicit IP targets work without it.
+    # network_mode: host
+    ports:
+      - "127.0.0.1:8080:8080"     # web UI (only if web.enabled: true and web.bind: 0.0.0.0 inside the container)
+    read_only: true               # root filesystem read-only; only /data and /tmp are writable
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      ESPHOME_MQTT_PASSWORD: ${ESPHOME_MQTT_PASSWORD:-}     # referenced by { env: ESPHOME_MQTT_PASSWORD }
+    secrets:
+      - mqtt_password                                       # referenced by { file: /run/secrets/mqtt_password }
+    volumes:
+      - ./examples/config.example.yaml:/config/config.yaml:ro   # collector configuration (read-only)
+      - ./esphome-configs:/config/devices:ro                    # device YAMLs + secrets.yaml (read-only)
+      - collector-data:/data                                    # persistent: SQLite DB, exports, raw files
+    # Serial logging (logs.device: /dev/ttyUSB0) needs the device passed through:
+    # devices: ["/dev/ttyUSB0:/dev/ttyUSB0"]
+
+volumes:
+  collector-data:
+
+secrets:
+  mqtt_password:
+    file: ./secrets/mqtt_password.txt

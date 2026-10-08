@@ -1,0 +1,104 @@
+# esphome-log-collector example configuration (validated by tests/test_config.py).
+# Mount read-only at /config/config.yaml. See README.md for every option.
+
+collector:
+  log_level: INFO            # DEBUG | INFO | WARNING | ERROR (collector's own container log)
+  stop_grace_seconds: 10     # time given to `esphome logs` to exit on shutdown before SIGKILL
+
+storage:
+  path: /data                # persistent writable volume: SQLite DB, optional raw files, health file
+  export_dir: /data/exports
+  raw_files:
+    enabled: false           # optional per-device append-only files in <path>/raw/<device>.log
+    max_file_mb: 50          # rotated to <device>.log.1 (one generation kept)
+
+# Settings inherited by every device; each device may override any of them.
+defaults:
+  backend: auto              # auto: "cli" if config_file is set, otherwise "api"
+  retry:
+    initial_delay: 2         # seconds
+    max_delay: 300
+    multiplier: 2.0
+    jitter: 0.2              # +/- 20 % random spread
+    reset_after: 60          # a session lasting this long resets the backoff
+  idle_timeout: 0            # reconnect after this many silent seconds (0 = never)
+  logs:                      # options of `esphome logs` (cli backend)
+    mqtt_username: collector
+    mqtt_password: { env: ESPHOME_MQTT_PASSWORD }   # or { file: /run/secrets/mqtt_password }
+  api:                       # native API settings (api backend)
+    port: 6053
+    connect_timeout: 30
+
+devices:
+  # CLI backend: runs `esphome logs`; needs the device's YAML (mounted read-only).
+  - name: living-room
+    address: 192.168.1.50            # explicit IP: works without mDNS
+    config_file: /config/devices/living-room.yaml
+    substitutions:                   # passed as `esphome -s key value`
+      room: living
+    capture:
+      watch_files: [/config/devices/secrets.yaml]   # also hash these for capture.on_change
+
+  # CLI backend over MQTT (esphome logs --topic ... --client-id ...).
+  - name: garage
+    esphome_name: garage-node
+    config_file: /config/devices/garage.yaml
+    logs:
+      device: MQTT                   # --device
+      mqtt_topic: garage-node
+      client_id: log-collector
+      mqtt_password: { file: /run/secrets/mqtt_password }
+      extra_args: ["--some-future-flag=1"]   # flags only; managed flags are rejected
+
+  # API backend: no YAML needed. Encrypted APIs need the noise key.
+  - name: porch
+    address: 192.168.1.61
+    api:
+      noise_psk: { env: PORCH_API_KEY }
+    retry:
+      max_delay: 60
+
+  # Reset the device before serial logging. DISRUPTIVE: reboots the device. Opt-in per device only.
+  - name: bench-serial
+    address: 192.168.1.70
+    config_file: /config/devices/bench.yaml
+    logs:
+      device: /dev/ttyUSB0
+      reset: true
+
+discovery:
+  enabled: false
+  interval_seconds: 0          # 0 = scan once at startup
+  scan_timeout: 10
+  names: [kitchen-sensor]      # exact names and/or prefixes are required unless allow_all: true
+  name_prefixes: ["sensor-"]
+  exclude_names: []
+  allow_all: false
+  config_dir: /config/devices  # <name>.yaml here makes a discovered device use the cli backend
+
+retention:
+  max_age_days: 90
+  max_total_size_mb: 2048      # live database pages; oldest events are deleted first
+  cleanup_interval_seconds: 3600
+  batch_size: 5000
+  max_batches_per_run: 200
+  per_device:
+    living-room: { max_age_days: 30, max_events: 1000000 }
+  exports: { max_age_days: 14, max_total_size_mb: 1024 }
+  config_snapshots: { max_age_days: 365, keep_last: 20 }
+
+capture:                       # `esphome config` snapshots (redacted before storing)
+  enabled: true
+  on_startup: true
+  interval_seconds: 86400      # 0 = no schedule
+  on_change: true              # re-capture when the YAML (or watch_files) changes
+  timeout: 120
+  extra_key_patterns: ["^my_custom_secret$"]   # regexes (case-insensitive) matched against YAML keys
+  extra_value_patterns: []                     # regexes replaced anywhere in the output
+
+web:                           # disabled by default; read-only; no authentication
+  enabled: false
+  bind: 127.0.0.1
+  port: 8080
+  page_size: 100
+  allowed_hosts: []            # optional Host header allow-list (DNS-rebinding protection)

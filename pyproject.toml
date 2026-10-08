@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "esphome-log-collector"
+version = "0.1.0"
+description = "Continuously collect and retain ESPHome firmware logs from many devices"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+# Runtime dependencies are pinned in requirements.txt (the supported set).
+dependencies = [
+    "esphome==2025.8.1",
+    "aioesphomeapi==39.0.0",
+    "zeroconf==0.147.0",
+    "PyYAML==6.0.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.5"]
+
+[project.scripts]
+esphome-log-collector = "esphome_log_collector.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
