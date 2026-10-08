@@ -11,6 +11,7 @@ import hmac
 import html
 import json
 import logging
+import os
 import secrets
 import sqlite3
 import threading
@@ -127,7 +128,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
         for k, v in (extra or {}).items():
-            self.send_header(k, v)
+            self.send_header(k, v.replace("\r", "").replace("\n", ""))  # never allow header injection
         self.end_headers()
         self.wfile.write(body)
 
@@ -192,17 +193,20 @@ class _Handler(BaseHTTPRequestHandler):
             with self._db() as conn:
                 return self._json([dict(r) for r in conn.execute("SELECT * FROM device_status ORDER BY device")])
         if path == "/api/logs":
-            rows, more = self._fetch_logs(p)
+            rows, more, _ = self._fetch_logs(p)
             return self._json({"events": [{**dict(r), "clean": strip_ansi(r["raw"])} for r in rows], "has_next": more})
         self._page("Not found", "<p>Not found.</p>", 404)
 
     def _route_post(self, path: str) -> None:
         if path != "/export":
             return self._page("Not found", "<p>Not found.</p>", 404)
-        length = int(self.headers.get("Content-Length") or 0)
-        if length > MAX_POST_BYTES:
-            raise BadRequest("request too large")
-        form = {k: v for k, v in parse_qs(self.rfile.read(length).decode("utf-8", "replace"), max_num_fields=50).items()}
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError as err:
+            raise BadRequest("invalid Content-Length") from err
+        if not 0 <= length <= MAX_POST_BYTES:
+            raise BadRequest("invalid or too large request body")
+        form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"), max_num_fields=50)
         token = (form.get("csrf") or [""])[0]
         if not hmac.compare_digest(token, self.app.csrf_token):
             return self._page("Forbidden", "<p>Invalid or missing CSRF token; reload the form.</p>", 403)
@@ -230,7 +234,8 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError as err:
             raise BadRequest("page_size must be an integer") from err
         with self._db() as conn:
-            return query_logs(conn, p, page, size)
+            rows, more = query_logs(conn, p, page, size)
+        return rows, more, page
 
     def _devices(self) -> list[str]:
         with self._db() as conn:
@@ -249,8 +254,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._page("Collector status", f"<table><tr>{head}</tr>{cells}</table>")
 
     def _logs_page(self, p: dict[str, str]) -> None:
-        rows, more = self._fetch_logs(p)
-        page = max(1, int(p.get("page", "1")))
+        rows, more, page = self._fetch_logs(p)
         esc = html.escape
         devices = "".join(f"<option{' selected' if d == p.get('device') else ''}>{esc(d)}</option>" for d in self._devices())
         levels = "".join(f"<option{' selected' if v == p.get('level') else ''}>{v}</option>" for v in LEVELS.values())
@@ -301,5 +305,13 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.app.config.export_dir / name
         if not path.is_file() or path.is_symlink():
             return self._page("Not found", "<p>Not found.</p>", 404)
-        self._send(200, path.read_bytes(), "application/gzip",
-                   {"Content-Disposition": f'attachment; filename="{name}"'})
+        with path.open("rb") as fh:
+            size = os.fstat(fh.fileno()).st_size
+            self.send_response(200)
+            self.send_header("Content-Type", "application/gzip")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            while chunk := fh.read(1 << 20):
+                self.wfile.write(chunk)

@@ -238,6 +238,14 @@ class Storage:
                 "SELECT * FROM config_snapshots WHERE device=? ORDER BY id DESC LIMIT 1", (device,)
             ).fetchone()
 
+    def first_event_id(self, device: str, offset: int) -> int | None:
+        """id of the event `offset` positions from the newest one of a device (None if fewer exist)."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id FROM events WHERE device=? ORDER BY id DESC LIMIT 1 OFFSET ?", (device, offset)
+            ).fetchone()
+        return row[0] if row else None
+
     def add_snapshot(self, device: str, source_hash: str, content_hash: str, content: str) -> None:
         with self.transaction() as conn:
             conn.execute(

@@ -111,9 +111,15 @@ def build_config_command(base: Sequence[str], device: "DeviceConfig") -> list[st
 
 
 def redact_argv(args: Sequence[str], secrets: Sequence[str]) -> list[str]:
-    """Copy of argv that is safe to log."""
+    """Copy of argv that is safe to log (known secrets are masked wherever they appear)."""
     out = list(args)
     for i, arg in enumerate(out):
-        if arg in ("--password",) and i + 1 < len(out):
+        if arg == "--password" and i + 1 < len(out):
             out[i + 1] = "***"
-    return [("***" if a in secrets and a else a) for a in out]
+    masked = []
+    for arg in out:
+        for secret in secrets:
+            if secret:
+                arg = arg.replace(secret, "***")
+        masked.append(arg)
+    return masked

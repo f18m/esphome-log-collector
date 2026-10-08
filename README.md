@@ -59,7 +59,7 @@ Note that the `esphome logs` CLI only accepts MQTT credentials as command-line a
   `<storage.path>/esphome-data/<device>` (`ESPHOME_DATA_DIR`), so the config mount can be read-only.
 * `api` – the native ESPHome API through `aioesphomeapi` (the library behind `esphome logs`), for
   devices without a YAML file. Uses `api.port`, `api.noise_psk` (encryption key) and `api.password`.
-  Differences: lines are prefixed with the collector's UTC `[HH:MM:SS]`; MQTT/serial are not available.
+  Differences: lines are prefixed with the collector's UTC `[HH:MM:SS]` (so `device_time` holds that collector time for API lines, not the device clock); MQTT/serial are not available.
 * `auto` (default) – `cli` when `config_file` is set, otherwise `api`.
 
 ### `esphome logs` options (backend `cli`)

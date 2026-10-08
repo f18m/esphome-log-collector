@@ -23,6 +23,7 @@ from .timeutil import format_ts, utc_now
 log = logging.getLogger("retention")
 
 STALE_TMP_SECONDS = 24 * 3600
+VACUUM_PAGES = 2000  # pages returned to the filesystem after each deleted batch
 
 
 class Retention:
@@ -70,7 +71,7 @@ class Retention:
                 )
                 deleted = cur.rowcount
                 if deleted:
-                    conn.execute("PRAGMA incremental_vacuum(2000)")
+                    conn.execute(f"PRAGMA incremental_vacuum({VACUUM_PAGES})")
             self._budget -= 1
             total += deleted
             if deleted < self.cfg.batch_size:
@@ -79,13 +80,10 @@ class Retention:
         return total
 
     async def _enforce_device_count(self, device: str, max_events: int) -> int:
-        with self.storage.transaction() as conn:
-            row = conn.execute(
-                "SELECT id FROM events WHERE device=? ORDER BY id DESC LIMIT 1 OFFSET ?", (device, max_events)
-            ).fetchone()
-        if row is None:
+        boundary = self.storage.first_event_id(device, max_events)
+        if boundary is None:
             return 0
-        return await self._delete_batches("device = ? AND id <= ?", (device, row[0]), "id")
+        return await self._delete_batches("device = ? AND id <= ?", (device, boundary), "id")
 
     async def _enforce_size(self, limit: int) -> int:
         total = 0
@@ -107,7 +105,7 @@ class Retention:
                 "DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY id LIMIT ?)", (self.cfg.batch_size,)
             )
             if cur.rowcount:
-                conn.execute("PRAGMA incremental_vacuum(2000)")
+                conn.execute(f"PRAGMA incremental_vacuum({VACUUM_PAGES})")
         self._budget -= 1
         return cur.rowcount
 
