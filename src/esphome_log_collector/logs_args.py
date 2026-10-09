@@ -4,11 +4,8 @@ Verified against the pinned ESPHome version (see SUPPORTED_ESPHOME_VERSION), who
 `esphome logs --help` offers exactly these options::
 
     esphome logs [-h] [--topic TOPIC] [--username USERNAME] [--password PASSWORD]
-                 [--client-id CLIENT_ID] [--device DEVICE] [--reset] configuration
-
-`--states/--no-states` is NOT offered by that version. The `states` option exists in the
-YAML schema so that it can be enabled when ESPHome is upgraded, but setting it is a
-validation error while it is absent from SUPPORTED_FLAGS.
+                 [--client-id CLIENT_ID] [--device DEVICE] [--reset]
+                 [--states | --no-states] configuration
 
 Commands are always built as argument lists; no shell is ever involved.
 """
@@ -29,9 +26,7 @@ SUPPORTED_FLAGS = {
     "client_id": "--client-id",
     "device": "--device",
     "reset": "--reset",
-}
-UNSUPPORTED_OPTIONS = {
-    "states": "`--states/--no-states` is not offered by `esphome logs` in the pinned ESPHome version",
+    "states": ("--states", "--no-states"),
 }
 
 # Flags the collector controls itself (or which would break supervision) and may not be
@@ -44,13 +39,6 @@ _MANAGED = {
 }
 _MANAGED_LONG = tuple(m for m in _MANAGED if m.startswith("--"))
 _ARG_RE = re.compile(r"^--?[A-Za-z][A-Za-z0-9-]*(=[^\x00\n]*)?$")
-
-
-def validate_logs_support(options: "LogsOptions") -> list[str]:
-    problems = []
-    if options.states is not None:
-        problems.append(UNSUPPORTED_OPTIONS["states"] + "; remove the 'states' option")
-    return problems
 
 
 def validate_extra_args(args: Sequence[str]) -> list[str]:
@@ -97,6 +85,8 @@ def build_logs_command(base: Sequence[str], device: "DeviceConfig") -> list[str]
         args += [SUPPORTED_FLAGS["device"], target]
     if opts.reset:
         args.append(SUPPORTED_FLAGS["reset"])
+    if opts.states is not None:
+        args.append(SUPPORTED_FLAGS["states"][0 if opts.states else 1])
     args += list(opts.extra_args)
     # `--` ends option parsing so the path can never be mistaken for a flag
     args += ["--", device.config_file]

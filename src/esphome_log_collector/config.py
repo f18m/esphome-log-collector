@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-from .logs_args import validate_extra_args, validate_logs_support
+from .logs_args import validate_extra_args
 
 DEVICE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 HOSTNAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]{0,251}[A-Za-z0-9])?$")
@@ -400,7 +400,7 @@ def _build_device(ctx: _Ctx, path: str, raw: dict, cfg_defaults: dict, source: s
         states=states,
         extra_args=extra_args,
     )
-    for problem in validate_logs_support(logs) + validate_extra_args(extra_args):
+    for problem in validate_extra_args(extra_args):
         ctx.err(f"{path}.logs", problem)
 
     araw = ctx.mapping(f"{path}.api", d.get("api"), _API_KEYS)

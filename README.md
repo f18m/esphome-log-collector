@@ -2,11 +2,12 @@
 
 A Docker-friendly service that continuously collects and retains **ESPHome firmware logs** from many
 devices. It reconnects after device/network outages, keeps logs across container restarts and lets you
-investigate intermittent crashes and reboots after the fact (SQLite storage, retention, export tarballs,
-sanitized configuration snapshots, optional read-only web UI).
+investigate intermittent crashes and reboots after the fact.
 
-* Pinned ESPHome version: **2025.8.1** (`requirements.txt`). The option mapping to `esphome logs` was
-  verified against that version's `esphome logs --help` and is checked by a test.
+It features an SQLite storage, configurable retention, possibility to export tarballs
+with sanitized configuration snapshots and optional a web UI to browse the logs!
+
+* Pinned ESPHome version: **2026.9.1** (`requirements.txt`).
 * No Home Assistant, Docker socket or systemd required. Explicit IP targets work without mDNS.
 
 ## Quick start
@@ -64,7 +65,7 @@ Note that the `esphome logs` CLI only accepts MQTT credentials as command-line a
 
 ### `esphome logs` options (backend `cli`)
 
-`esphome logs --help` in ESPHome 2025.8.1 offers exactly these options; all are configurable under
+`esphome logs --help` in ESPHome 2026.9.1 offers exactly these options; all are configurable under
 `logs:` (per device or in `defaults`, except `device` and `reset`, which are per device only):
 
 | YAML (`logs.`) | CLI argument | Notes |
@@ -75,7 +76,7 @@ Note that the `esphome logs` CLI only accepts MQTT credentials as command-line a
 | `mqtt_password` | `--password` | secret reference |
 | `client_id` | `--client-id` | |
 | `reset` | `--reset` | **Disruptive** (resets the device before serial logging). Per-device opt-in only, never default, rejected in `defaults`. |
-| `states` | `--states/--no-states` | **Not offered by 2025.8.1**; setting it is a validation error (kept so it can be enabled on upgrade). |
+| `states` | `--states/--no-states` | |
 | `extra_args` | verbatim | Pass-through for future/rare flags; only `--flag` / `--flag=value` forms. Managed flags (the ones above, `--help`, config/output/log-file/substitution/verbosity options, and any unambiguous abbreviation of them) and positional values are rejected. |
 
 Also `substitutions: {k: v}` (→ `esphome -s k v`). The command is always
@@ -96,7 +97,7 @@ session left open by a crash/kill is closed with reason `collector_crashed_or_ki
 
 ### Discovery (optional)
 
-`discovery.enabled: true` browses mDNS (`_esphomelib._tcp.local.`) with zeroconf. (ESPHome 2025.8.1's
+`discovery.enabled: true` browses mDNS (`_esphomelib._tcp.local.`) with zeroconf. (ESPHome 2026.9.1's
 `esphome discover` is not a reliable discovery mechanism, hence zeroconf directly.) Discovery must be
 restricted: `names`, `name_prefixes` and/or `exclude_names`, or an explicit `allow_all: true`.
 Discovered devices that match an explicit target by name, `esphome_name` or address are dropped
@@ -117,10 +118,10 @@ SQLite (`<storage.path>/collector.sqlite3`; WAL journal, `synchronous=NORMAL`, f
 * **Timestamps** are UTC, ISO-8601 with microseconds (`2025-01-31T12:00:00.123456Z`), assigned by the
   collector **when the line is received** (ESPHome's wall-clock text, when present, is in `raw` and
   parsed into `device_time`; device clocks are not trusted).
-* **Raw lines** are stored verbatim (ANSI sequences included, invalid UTF-8 replaced). `level`/
-  `component`/`message` are best-effort parses of ESPHome's `[HH:MM:SS][I][comp:line]: text` format
-  and `INFO text` CLI lines; unparsed lines keep `level`/`component` NULL. ANSI-stripped text is
-  available in exports (`clean`) and in the web UI.
+* **Raw lines** are stored after credential redaction (ANSI sequences included, invalid UTF-8
+  replaced). `level`/`component`/`message` are best-effort parses of ESPHome's
+  `[HH:MM:SS][I][comp:line]: text` format and `INFO text` CLI lines; unparsed lines keep
+  `level`/`component` NULL. ANSI-stripped text is available in exports (`clean`) and in the web UI.
 * `storage.raw_files.enabled: true` also appends `<ts> <raw line>` to `<path>/raw/<device>.log`
   (rotated once to `.log.1` at `max_file_mb`). This is a convenience copy; SQLite stays authoritative.
 
@@ -217,8 +218,10 @@ docker build -t esphome-log-collector .
 
 ## Security notes
 
-Credentials come from env/files, never from source or the example; they are masked in logs and never
-exported. Commands use argument arrays (no shell), `extra_args` cannot override managed options, the
-web UI and exports only serve generated names under the export directory, and the subprocess receives
-a minimal environment. Raw firmware log lines are stored verbatim: if your firmware logs secrets, they
-will be in the database and exports (only configuration snapshots are redacted).
+Credentials come from env/files, never from source or the example; they are masked in collector logs
+and exports. CLI output is scrubbed for credential-like YAML keys, exact values from the adjacent
+ESPHome `secrets.yaml`, and configured redaction patterns before it is stored. Commands use argument
+arrays (no shell), `extra_args` cannot override managed options, the web UI and exports only serve
+generated names under the export directory, and the subprocess receives a minimal environment.
+Custom firmware messages containing values not covered by the redaction rules may still be retained;
+do not log credentials from firmware.

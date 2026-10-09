@@ -11,10 +11,10 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 # Runtime dependencies are pinned in requirements.txt (the supported set).
 dependencies = [
-    "esphome==2025.8.1",
-    "aioesphomeapi==39.0.0",
-    "zeroconf==0.147.0",
-    "PyYAML==6.0.2",
+    "esphome==2026.9.1",
+    "aioesphomeapi==46.3.0",
+    "zeroconf==0.151.2",
+    "PyYAML==6.0.3",
 ]
 
 [project.optional-dependencies]
