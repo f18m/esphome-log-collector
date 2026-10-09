@@ -69,6 +69,37 @@ def test_log_search_filters_and_pagination(web):
     assert get(base + "/api/logs?level=NOPE")[0] == 400
 
 
+def test_tail_page_and_live_stream(web):
+    base, _, cfg = web
+    status, body, headers = get(base + "/tail?device=a")
+    assert status == 200 and "Live log tail" in body and "new EventSource" in body
+    assert "script-src 'nonce-" in headers["Content-Security-Policy"]
+    assert "connect-src 'self'" in headers["Content-Security-Policy"]
+    assert get(base + "/api/tail?after=invalid")[0] == 400
+
+    with st.connect(cfg.db_path, readonly=True) as conn:
+        after = conn.execute("SELECT MAX(id) FROM events").fetchone()[0]
+    response = urllib.request.urlopen(base + f"/api/tail?device=a&after={after}", timeout=5)
+    try:
+        assert response.headers["Content-Type"].startswith("text/event-stream")
+        assert response.readline() == b": connected\n"
+        response.readline()
+
+        storage = st.Storage(cfg.db_path)
+        session_id, _ = storage.start_session("a", "1.1.1.1")
+        storage.add_log("a", "1.1.1.1", session_id, "[00:00:00]\x1b[0;31m[E][live:1]: new line\x1b[0m")
+        storage.close()
+
+        while True:
+            line = response.readline()
+            if line.startswith(b"data: "):
+                event = json.loads(line.removeprefix(b"data: "))
+                break
+        assert event["device"] == "a" and event["clean"].endswith("[E][live:1]: new line")
+    finally:
+        response.close()
+
+
 def test_html_is_escaped(web):
     base, _, cfg = web
     s = st.Storage(cfg.db_path)
