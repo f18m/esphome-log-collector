@@ -8,7 +8,7 @@ import pytest
 from esphome_log_collector import SUPPORTED_ESPHOME_VERSION
 from esphome_log_collector.config import ApiOptions, DeviceConfig, LogsOptions, Secret
 from esphome_log_collector.logs_args import (
-    SUPPORTED_FLAGS, build_config_command, build_logs_command, redact_argv,
+    build_config_command, build_logs_command, redact_argv,
 )
 
 BASE = ["esphome"]
@@ -22,11 +22,11 @@ def device(**logs):
 def test_every_supported_option_maps_to_its_flag():
     argv = build_logs_command(BASE, device(
         device="/dev/ttyUSB0", mqtt_topic="t/1", mqtt_username="u", mqtt_password=Secret("pw"),
-        client_id="cid", reset=True, extra_args=("--future=1",)))
+        client_id="cid", reset=True, states=True, extra_args=("--future=1",)))
     assert argv == [
         "esphome", "-s", "room", "kitchen; rm -rf /", "logs",
         "--topic", "t/1", "--username", "u", "--password", "pw", "--client-id", "cid",
-        "--device", "/dev/ttyUSB0", "--reset", "--future=1", "--", "/cfg/d.yaml",
+        "--device", "/dev/ttyUSB0", "--reset", "--states", "--future=1", "--", "/cfg/d.yaml",
     ]
 
 
@@ -34,6 +34,12 @@ def test_defaults_use_address_and_never_reset():
     argv = build_logs_command(BASE, device())
     assert argv[argv.index("--device") + 1] == "10.0.0.5"
     assert "--reset" not in argv
+    assert "--states" not in argv and "--no-states" not in argv
+
+
+def test_states_can_be_explicitly_disabled():
+    argv = build_logs_command(BASE, device(states=False))
+    assert "--no-states" in argv and "--states" not in argv
 
 
 def test_arguments_are_a_list_without_shell_interpolation():
@@ -56,5 +62,8 @@ def test_flags_match_pinned_esphome_help():
     assert SUPPORTED_ESPHOME_VERSION in version
     out = subprocess.run([sys.executable, "-m", "esphome", "logs", "--help"], capture_output=True, text=True).stdout
     offered = set(re.findall(r"--[a-z][a-z-]*", out)) - {"--help"}
-    assert offered == set(SUPPORTED_FLAGS.values()) - {"--states"}
-    assert "--states" not in out
+    expected = {
+        "--topic", "--username", "--password", "--client-id", "--device", "--reset",
+        "--states", "--no-states",
+    }
+    assert offered == expected

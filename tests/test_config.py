@@ -64,11 +64,11 @@ def test_reset_needs_per_device_opt_in(tmp_path):
     assert c.devices[0].logs.reset is True
 
 
-def test_states_option_rejected_for_pinned_version(tmp_path):
+def test_states_option_is_supported_for_pinned_version(tmp_path):
     f = tmp_path / "a.yaml"
     f.write_text("x: 1\n")
-    msg = errors_of(devices=[{"name": "a", "address": "1.1.1.1", "config_file": str(f), "logs": {"states": False}}])
-    assert "--states" in msg and "not offered" in msg
+    c = cfg(devices=[{"name": "a", "address": "1.1.1.1", "config_file": str(f), "logs": {"states": False}}])
+    assert c.devices[0].logs.states is False
 
 
 @pytest.mark.parametrize("arg", ["--device=x", "--config=y", "-o=1", "positional", "--res", "--output-file"])

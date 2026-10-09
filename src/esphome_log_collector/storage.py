@@ -176,7 +176,7 @@ class Storage:
         self, device: str, address: str | None, session_id: str, event_type: str, raw: str,
         ts: str | None = None, parse: bool = False,
     ) -> str:
-        """Persist one event. `raw` is stored verbatim; parsed fields are best-effort extras."""
+        """Persist one event. `raw` is the redacted input; parsed fields are best-effort extras."""
         ts = ts or now_ts()
         parsed = parse_line(raw) if parse else None
         with self.transaction() as conn:

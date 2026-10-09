@@ -2,7 +2,7 @@ import asyncio
 
 from esphome_log_collector.config import make_discovered_device, parse_config
 from esphome_log_collector.discovery import Discovered, discovery_loop, matches_filter, new_targets
-from esphome_log_collector.redact import REDACTED, Redactor
+from esphome_log_collector.redact import REDACTED, Redactor, load_esphome_secret_values
 
 SAMPLE = """\
 esphome:
@@ -50,6 +50,27 @@ def test_redaction_removes_credentials_and_keeps_structure():
 def test_known_secrets_are_scrubbed_anywhere():
     out = Redactor(known_secrets=["s3cr3t-value"]).redact_text("name: dev-s3cr3t-value-x\n")
     assert "s3cr3t-value" not in out
+
+
+def test_streaming_redaction_hides_sensitive_blocks_across_lines():
+    r = Redactor()
+    lines = [
+        r.redact_line("api:"),
+        r.redact_line("  encryption:"),
+        r.redact_line("    key: |"),
+        r.redact_line("      private-material"),
+        r.redact_line("  password: cleartext-password"),
+    ]
+    assert "private-material" not in "\n".join(lines)
+    assert "cleartext-password" not in "\n".join(lines)
+    assert lines[-1] == f"  password: {REDACTED}"
+
+
+def test_esphome_secret_values_are_loaded_for_log_redaction(tmp_path):
+    config = tmp_path / "device.yaml"
+    config.write_text("esphome: {}\n")
+    (tmp_path / "secrets.yaml").write_text("wifi_password: hidden-value\nnested:\n  key: hidden-key\n")
+    assert set(load_esphome_secret_values(str(config))) == {"hidden-value", "hidden-key"}
 
 
 def test_discovery_filters_and_dedup():

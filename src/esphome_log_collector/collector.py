@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ from typing import Callable
 from . import storage as st
 from .config import Config, DeviceConfig, RetryConfig
 from .parsing import parse_line
+from .redact import Redactor, load_esphome_secret_values
 from .logs_args import build_logs_command, redact_argv
 from .timeutil import format_ts, now_ts, utc_now
 
@@ -100,6 +102,12 @@ class DeviceCollector:
         self.session_id = ""
         self.lines = 0
         self.connected = False
+        self.recent_output: deque[str] = deque(maxlen=12)
+        self.redactor = Redactor(
+            config.capture.extra_key_patterns,
+            config.capture.extra_value_patterns,
+            (*config.secrets, *load_esphome_secret_values(device.config_file)),
+        )
         if config.raw_files.enabled:
             self.raw_file = RawLogFile(
                 config.data_dir / "raw" / f"{device.name}.log", int(config.raw_files.max_file_mb * 1024 * 1024)
@@ -116,6 +124,8 @@ class DeviceCollector:
             self.raw_file.write(ts, f"# collector {event_type}: {message}")
 
     def _line(self, text: str) -> None:
+        text = self.redactor.redact_line(text)
+        self.recent_output.append(text[:400])
         ts = self.storage.add_log(self.device.name, self.address, self.session_id, text)
         self.lines += 1
         if self.raw_file:
@@ -194,6 +204,8 @@ class DeviceCollector:
     # ---- backends ---------------------------------------------------------------
     async def _session_cli(self) -> SessionResult:
         argv = build_logs_command(self.config.esphome_command, self.device)
+        self.recent_output.clear()
+        self.redactor.reset()
         secrets = [self.device.logs.mqtt_password.reveal()] if self.device.logs.mqtt_password else []
         log.info("device %s: starting %s", self.device.name, " ".join(redact_argv(argv, secrets)))
         try:
@@ -235,7 +247,12 @@ class DeviceCollector:
             code = await self._terminate(proc)
         if reason:
             return SessionResult(reason)
-        return SessionResult(f"esphome exited with code {code}", None if code == 0 else f"esphome logs exited with code {code}")
+        if code == 0:
+            return SessionResult(f"esphome exited with code {code}")
+        tail = "\n".join(line for line in self.recent_output if line)
+        detail = f"; recent output:\n{tail}" if tail else ""
+        return SessionResult(f"esphome exited with code {code}",
+                             f"esphome logs exited with code {code}{detail}")
 
     def _emit_lines(self, buffer: bytes, final: bool = False) -> bytes:
         while True:
