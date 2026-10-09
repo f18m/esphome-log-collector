@@ -2,12 +2,12 @@
 
 A Docker-friendly service that continuously collects and retains **ESPHome firmware logs** from many
 devices. It reconnects after device/network outages, keeps logs across container restarts and lets you
-investigate intermittent crashes and reboots after the fact (SQLite storage, retention, export tarballs,
-sanitized configuration snapshots, optional read-only web UI).
+investigate intermittent crashes and reboots after the fact.
 
-* Pinned ESPHome version: **2026.9.1** (`requirements.txt`). This version supports the dynamic
-  include substitutions used by the interface-panel configurations. The `esphome logs` option
-  mapping is verified against its help output and checked by a test.
+It features an SQLite storage, configurable retention, possibility to export tarballs
+with sanitized configuration snapshots and optional a web UI to browse the logs!
+
+* Pinned ESPHome version: **2026.9.1** (`requirements.txt`).
 * No Home Assistant, Docker socket or systemd required. Explicit IP targets work without mDNS.
 
 ## Quick start
