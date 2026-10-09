@@ -1,6 +1,12 @@
 <form method="post" action="/export">
   <input type="hidden" name="csrf" value="${csrf_token}">
-  <p>Devices (none selected = all): ${devices}</p>
+  <fieldset class="device-select">
+    <legend>Devices (none selected = all)</legend>
+    <table class="device-select-table">
+      <thead><tr><th>Select</th><th>Device</th></tr></thead>
+      <tbody>${devices}</tbody>
+    </table>
+  </fieldset>
   <p>From (UTC, inclusive) <input name="start"> To (UTC, exclusive) <input name="end">
     <label><input type="checkbox" name="include_configs" value="1" checked> sanitized configurations</label>
     <button>Create export</button>

@@ -52,6 +52,10 @@ def test_status_page_and_api(web):
     assert "/static/app.css" in body and 'name="viewport"' in body
     assert '<a href="/" class="active" aria-current="page">Status</a>' in body
     assert "<h1>" not in body
+    assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
+    assert '<td class="address">1.1.1.1</td>' in body
+    css = get(base + "/static/app.css")[1]
+    assert "td.address" in css and "font-family: ui-monospace" in css
     assert json.loads(get(base + "/api/status")[1])[0]["device"] == "a"
 
 
@@ -143,6 +147,8 @@ def test_read_only_methods_and_csrf(web):
 def test_export_create_and_download(web):
     base, server, cfg = web
     page = get(base + "/exports")[1]
+    assert '<table class="device-select-table">' in page
+    assert '<input id="export-device-a" type="checkbox" name="device" value="a">' in page
     token = re.search(r'name="csrf" value="([^"]+)"', page).group(1)
 
     class NoRedirect(urllib.request.HTTPRedirectHandler):

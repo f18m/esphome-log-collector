@@ -104,6 +104,22 @@ table {
   border-radius: 1rem;
   box-shadow: 0 8px 24px #1e293b0b;
 }
+td.address {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.state-indicator {
+  display: inline-block;
+  min-width: 1.5em;
+  text-align: center;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: help;
+}
+.state-connected { color: #16803c; }
+.state-starting, .state-connecting { color: #2563eb; }
+.state-backoff { color: #d97706; }
+.state-stopped { color: #64748b; }
+.state-unknown { color: #7c3aed; }
 td, th {
   padding: .7rem .8rem;
   border-bottom: 1px solid #e8edf4;
@@ -170,6 +186,15 @@ td.m {
 ul { padding-left: 2.25rem; }
 li { padding: .25rem 0; }
 p { line-height: 1.6; }
+.device-select {
+  min-width: min(100%, 24rem);
+  margin: 0;
+  border: 0;
+}
+.device-select legend { font-weight: 700; }
+.device-select-table { margin: .5rem 0; }
+.device-select-table th, .device-select-table td { padding: .4rem .6rem; }
+.device-select-table input { min-height: auto; }
 @media (max-width: 760px) {
   body { padding: 1rem .75rem; }
   .log-table { min-width: 900px; }

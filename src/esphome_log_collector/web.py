@@ -34,6 +34,13 @@ from .timeutil import parse_ts
 log = logging.getLogger("web")
 MAX_POST_BYTES = 64 * 1024
 EVENT_TYPES = (LOG, *COLLECTOR_EVENTS)
+STATE_INDICATORS = {
+    "connected": ("●", "connected"),
+    "starting": ("◌", "starting"),
+    "connecting": ("◌", "connecting"),
+    "backoff": ("↻", "backoff"),
+    "stopped": ("■", "stopped"),
+}
 STATIC_ASSETS = {
     "/static/app.css": ("app.css", "text/css; charset=utf-8"),
     "/static/tail.js": ("tail.js", "text/javascript; charset=utf-8"),
@@ -363,17 +370,19 @@ class _Handler(BaseHTTPRequestHandler):
             "device", "address", "backend", "source", "state", "last_line_at", "attempts",
             "next_retry_at", "last_error",
         )
-        rendered_rows = "".join(
-            _render(
-                "status_row.html",
-                **{
-                    key: html.escape(str(row[key] if row[key] is not None else ""))
-                    for key in columns
-                },
+        rendered = []
+        for row in rows:
+            values = {
+                key: html.escape(str(row[key] if row[key] is not None else ""))
+                for key in columns
+            }
+            icon, state_class = STATE_INDICATORS.get(row["state"], ("●", "unknown"))
+            values["state_indicator"] = (
+                f'<span class="state-indicator state-{state_class}" '
+                f'title="{values["state"]}" aria-label="{values["state"]}">{icon}</span>'
             )
-            for row in rows
-        )
-        self._page("Collector status", "status.html", rows=rendered_rows)
+            rendered.append(_render("status_row.html", **values))
+        self._page("Collector status", "status.html", rows="".join(rendered))
 
     def _logs_page(self, p: dict[str, str]) -> None:
         rows, more, page = self._fetch_logs(p)
