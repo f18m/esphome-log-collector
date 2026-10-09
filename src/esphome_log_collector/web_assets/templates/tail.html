@@ -1,0 +1,13 @@
+<form method="get" action="/tail">
+  Device <select name="device"><option value="">all</option>${devices}</select>
+  Level <select name="level"><option value="">any</option>${levels}</select>
+  Type <select name="type"><option value="">any</option>${types}</select>
+  Text <input name="q" value="${query}">
+  <button>Tail</button>
+</form>
+<p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>
+<table>
+  <thead><tr><th>Time (UTC)</th><th>Device</th><th>Level</th><th>Component</th><th>Type</th><th>Line (ANSI removed)</th></tr></thead>
+  <tbody id="tail-rows" data-stream-url="${stream_url}">${rows}</tbody>
+</table>
+<script src="/static/tail.js" defer></script>

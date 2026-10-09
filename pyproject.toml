@@ -26,6 +26,9 @@ esphome-log-collector = "esphome_log_collector.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+esphome_log_collector = ["web_assets/templates/*.html", "web_assets/static/*"]
+
 [tool.setuptools_scm]
 fallback_version = "0.1.0"
 version_file = "src/esphome_log_collector/_version.py"

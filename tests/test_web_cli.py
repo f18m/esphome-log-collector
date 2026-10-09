@@ -49,8 +49,19 @@ def test_status_page_and_api(web):
     base, _, _ = web
     status, body, headers = get(base + "/")
     assert status == 200 and "connected" in body and headers["Content-Security-Policy"].startswith("default-src 'none'")
-    assert "radial-gradient" in body and "name='viewport'" in body
+    assert "/static/app.css" in body and 'name="viewport"' in body
     assert json.loads(get(base + "/api/status")[1])[0]["device"] == "a"
+
+
+def test_static_assets(web):
+    base, _, _ = web
+    status, css, headers = get(base + "/static/app.css")
+    assert status == 200 and headers["Content-Type"].startswith("text/css")
+    assert "radial-gradient" in css
+    status, script, headers = get(base + "/static/tail.js")
+    assert status == 200 and headers["Content-Type"].startswith("text/javascript")
+    assert "new EventSource" in script
+    assert get(base + "/static/missing.js")[0] == 404
 
 
 def test_log_search_filters_and_pagination(web):
@@ -72,8 +83,8 @@ def test_log_search_filters_and_pagination(web):
 def test_tail_page_and_live_stream(web):
     base, _, cfg = web
     status, body, headers = get(base + "/tail?device=a")
-    assert status == 200 and "Live log tail" in body and "new EventSource" in body
-    assert "script-src 'nonce-" in headers["Content-Security-Policy"]
+    assert status == 200 and "Live log tail" in body and "/static/tail.js" in body
+    assert "script-src 'self'" in headers["Content-Security-Policy"]
     assert "connect-src 'self'" in headers["Content-Security-Policy"]
     assert get(base + "/api/tail?after=invalid")[0] == 400
 
@@ -120,7 +131,7 @@ def test_read_only_methods_and_csrf(web):
 def test_export_create_and_download(web):
     base, server, cfg = web
     page = get(base + "/exports")[1]
-    token = re.search(r"name='csrf' value='([^']+)'", page).group(1)
+    token = re.search(r'name="csrf" value="([^"]+)"', page).group(1)
 
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *a, **k):
@@ -132,7 +143,7 @@ def test_export_create_and_download(web):
         opener.open(req)
     assert exc.value.code == 303
     listing = get(base + "/exports")[1]
-    name = re.search(r"/exports/(esphome-log-export-[^']+\.tar\.gz)", listing).group(1)
+    name = re.search(r'/exports/(esphome-log-export-[^"]+\.tar\.gz)', listing).group(1)
     status, _, headers = get(base + "/exports/" + name)
     assert status == 200 and headers["Content-Type"] == "application/gzip"
     for bad in ("../collector.sqlite3", "..%2fcollector.sqlite3", "notes.txt", "%2e%2e/x"):
