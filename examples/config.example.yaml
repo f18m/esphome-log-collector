@@ -33,16 +33,16 @@ devices:
   # CLI backend: runs `esphome logs`; needs the device's YAML (mounted read-only).
   - name: living-room
     address: 192.168.1.50            # explicit IP: works without mDNS
-    config_file: /config/devices/living-room.yaml
+    config_file: /esphome/living-room.yaml
     substitutions:                   # passed as `esphome -s key value`
       room: living
     capture:
-      watch_files: [/config/devices/secrets.yaml]   # also hash these for capture.on_change
+      watch_files: [/esphome/secrets.yaml]   # also hash these for capture.on_change
 
   # CLI backend over MQTT (esphome logs --topic ... --client-id ...).
   - name: garage
     esphome_name: garage-node
-    config_file: /config/devices/garage.yaml
+    config_file: /esphome/garage.yaml
     logs:
       device: MQTT                   # --device
       mqtt_topic: garage-node
@@ -61,7 +61,7 @@ devices:
   # Reset the device before serial logging. DISRUPTIVE: reboots the device. Opt-in per device only.
   - name: bench-serial
     address: 192.168.1.70
-    config_file: /config/devices/bench.yaml
+    config_file: /esphome/bench.yaml
     logs:
       device: /dev/ttyUSB0
       reset: true
@@ -74,7 +74,7 @@ discovery:
   name_prefixes: ["sensor-"]
   exclude_names: []
   allow_all: false
-  config_dir: /config/devices  # <name>.yaml here makes a discovered device use the cli backend
+  config_dir: /esphome        # <name>.yaml here makes a discovered device use the cli backend
 
 retention:
   max_age_days: 90

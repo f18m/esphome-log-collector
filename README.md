@@ -40,7 +40,10 @@ Commands (`esphome-log-collector <command>`; the image entrypoint is this progra
 | `export` | Create an export tarball (see [Export](#export-tarball)). |
 | `healthcheck` | Exit 0 when the collector process is healthy (used by the Docker `HEALTHCHECK`). |
 
-The config path is `-c/--config`, default `$ESPHOME_LOG_COLLECTOR_CONFIG` (`/config/config.yaml`).
+The collector's own config path is `-c/--config`, default `$ESPHOME_LOG_COLLECTOR_CONFIG`
+(`/config/config.yaml`). In Docker, reserve `/config` for that file and mount ESPHome device YAMLs
+and their adjacent `secrets.yaml` separately at `/esphome`; use `/esphome/...` for `config_file`,
+`capture.watch_files`, and `discovery.config_dir`.
 
 ## Configuration
 
@@ -217,9 +220,9 @@ The `latest` tag tracks `main` and tagged releases; version-specific tags are al
   includes `git` and CA certificates for ESPHome remote packages, non-root user `collector` (uid
   10001), `HEALTHCHECK`, `SIGTERM` for graceful shutdown. Non-Docker installations using ESPHome
   configurations with remote packages also need the `git` executable installed.
-* Mount the collector YAML and device YAMLs/`secrets.yaml` read-only (`:ro`) and `/data` writable
-  (a named volume, or a bind mount owned by uid 10001). Logs of the collector go to stderr; firmware
-  logs go to `/data`.
+* Mount the collector YAML at `/config/config.yaml` and ESPHome device YAMLs plus their adjacent
+  `secrets.yaml` at `/esphome`, all read-only (`:ro`). Keep `/data` writable (a named volume, or a
+  bind mount owned by uid 10001). Logs of the collector go to stderr; firmware logs go to `/data`.
 * **Health**: the process writes a heartbeat file every 10 s; `healthcheck` fails only if the collector
   is gone or its event loop stalled (> 60 s). Offline ESPHome devices never fail it; see per-device state
   in `/api/status` or the `device_status` table.

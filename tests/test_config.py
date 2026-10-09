@@ -150,14 +150,15 @@ def test_make_discovered_device_uses_defaults():
 def test_example_configuration_is_valid(tmp_path, monkeypatch):
     example = Path(__file__).parent.parent / "examples" / "config.example.yaml"
     text = example.read_text()
-    conf_dir = tmp_path / "config"
-    (conf_dir / "devices").mkdir(parents=True)
+    esphome_dir = tmp_path / "esphome"
+    esphome_dir.mkdir()
     for n in ("living-room", "garage", "bench", "secrets"):
-        (conf_dir / "devices" / f"{n}.yaml").write_text("esphome: {}\n")
+        (esphome_dir / f"{n}.yaml").write_text("esphome: {}\n")
     secrets = tmp_path / "run"
     secrets.mkdir()
     (secrets / "mqtt_password").write_text("pw\n")
-    text = text.replace("/config/", f"{conf_dir}/").replace("/run/secrets/", f"{secrets}/")
+    text = text.replace("/esphome/", f"{esphome_dir}/").replace("config_dir: /esphome", f"config_dir: {esphome_dir}")
+    text = text.replace("/run/secrets/", f"{secrets}/")
     text = text.replace("path: /data", f"path: {tmp_path}/data").replace("export_dir: /data/exports", f"export_dir: {tmp_path}/data/exports")
     monkeypatch.setenv("ESPHOME_MQTT_PASSWORD", "x")
     monkeypatch.setenv("PORCH_API_KEY", "y")

@@ -21,7 +21,7 @@ services:
       - mqtt_password                                       # referenced by { file: /run/secrets/mqtt_password }
     volumes:
       - ./examples/config.example.yaml:/config/config.yaml:ro   # collector configuration (read-only)
-      - ./esphome-configs:/config/devices:ro                    # device YAMLs + secrets.yaml (read-only)
+      - ./esphome-configs:/esphome:ro                           # ESPHome device YAMLs + secrets.yaml (read-only)
       - collector-data:/data                                    # persistent: SQLite DB, exports, raw files
     # Serial logging (logs.device: /dev/ttyUSB0) needs the device passed through:
     # devices: ["/dev/ttyUSB0:/dev/ttyUSB0"]
