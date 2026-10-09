@@ -18,6 +18,8 @@ with sanitized configuration snapshots and an optional web UI to browse the logs
   [aioesphomeapi](https://github.com/esphome/aioesphomeapi); optional mDNS discovery uses
   [python-zeroconf](https://github.com/python-zeroconf/python-zeroconf).
 
+<img title="log-browser" alt="log-browser" src="docs/screencast1-v0.2.0.webm">
+
 ## Quick start
 
 ```bash
