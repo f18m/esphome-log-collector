@@ -50,6 +50,7 @@ def test_status_page_and_api(web):
     status, body, headers = get(base + "/")
     assert status == 200 and "connected" in body and headers["Content-Security-Policy"].startswith("default-src 'none'")
     assert "/static/app.css" in body and 'name="viewport"' in body
+    assert body.count('<script src="/static/ui.js" defer></script>') == 1
     assert '<a href="/" class="active" aria-current="page">Status</a>' in body
     assert "<h1>" not in body
     assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
@@ -81,6 +82,7 @@ def test_log_search_filters_and_pagination(web):
     assert '<a href="/logs" class="active" aria-current="page">Logs</a>' in page
     assert '<div class="log-table-scroll">' in page
     assert '<table class="log-table">' in page
+    assert page.index('<form method="get" action="/logs">') < page.index('data-font-target="logs"') < page.index("</form>")
     assert 'data-font-target="logs"' in page and "Increase log font size" in page
     css = get(base + "/static/app.css")[1]
     assert ".log-table td" in css and "font-family: ui-monospace" in css
@@ -104,6 +106,7 @@ def test_tail_page_and_live_stream(web):
     status, body, headers = get(base + "/tail?device=a")
     assert status == 200 and "<title>Live Tail</title>" in body and "/static/tail.js" in body
     assert '<a href="/tail" class="active" aria-current="page">Live Tail</a>' in body
+    assert body.index('<form method="get" action="/tail">') < body.index('data-font-target="tail"') < body.index("</form>")
     assert 'data-font-target="tail"' in body and "Increase Live Tail font size" in body
     assert 'class="terminal"' in body and "<table" not in body
     assert "[E][x:1]: failure 100%_done" in body

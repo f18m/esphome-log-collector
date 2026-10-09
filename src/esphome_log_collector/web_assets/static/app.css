@@ -155,9 +155,8 @@ td.m {
 }
 .log-controls { flex: none; }
 .font-controls {
-  display: flex;
+  display: inline-flex;
   gap: .35rem;
-  margin-top: .65rem;
 }
 .font-controls button {
   min-width: 2.5rem;
