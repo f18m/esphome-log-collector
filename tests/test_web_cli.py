@@ -159,6 +159,8 @@ def test_export_create_and_download(web):
     page = get(base + "/exports")[1]
     assert '<table class="device-select-table">' in page
     assert '<input id="export-device-a" type="checkbox" name="device" value="a">' in page
+    assert '<input type="datetime-local" name="start" step="1">' in page
+    assert '<input type="datetime-local" name="end" step="1">' in page
     token = re.search(r'name="csrf" value="([^"]+)"', page).group(1)
 
     class NoRedirect(urllib.request.HTTPRedirectHandler):

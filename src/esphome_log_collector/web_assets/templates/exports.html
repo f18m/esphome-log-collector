@@ -7,7 +7,9 @@
       <tbody>${devices}</tbody>
     </table>
   </fieldset>
-  <p>From (UTC, inclusive) <input name="start"> To (UTC, exclusive) <input name="end">
+  <p>
+    <label>From (UTC, inclusive) <input type="datetime-local" name="start" step="1"></label>
+    <label>To (UTC, exclusive) <input type="datetime-local" name="end" step="1"></label>
     <label><input type="checkbox" name="include_configs" value="1" checked> sanitized configurations</label>
     <button>Create export</button>
   </p>
