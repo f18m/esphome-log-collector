@@ -44,6 +44,7 @@ STATE_INDICATORS = {
 STATIC_ASSETS = {
     "/static/app.css": ("app.css", "text/css; charset=utf-8"),
     "/static/tail.js": ("tail.js", "text/javascript; charset=utf-8"),
+    "/static/ui.js": ("ui.js", "text/javascript; charset=utf-8"),
 }
 
 
@@ -365,10 +366,20 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _status_page(self) -> None:
         with self._db() as conn:
-            rows = conn.execute("SELECT * FROM device_status ORDER BY device").fetchall()
+            rows = conn.execute(
+                """
+                SELECT device_status.*,
+                       (SELECT COUNT(*) FROM events
+                        WHERE events.device = device_status.device AND events.event_type = ?)
+                           AS log_count
+                FROM device_status
+                ORDER BY device
+                """,
+                (LOG,),
+            ).fetchall()
         columns = (
-            "device", "address", "backend", "source", "state", "last_line_at", "attempts",
-            "next_retry_at", "last_error",
+            "device", "address", "backend", "source", "state", "last_line_at", "log_count",
+            "attempts", "next_retry_at", "last_error",
         )
         rendered = []
         for row in rows:
@@ -376,6 +387,8 @@ class _Handler(BaseHTTPRequestHandler):
                 key: html.escape(str(row[key] if row[key] is not None else ""))
                 for key in columns
             }
+            values["next_retry_at"] = html.escape(row["next_retry_at"] or "-")
+            values["last_error"] = html.escape(row["last_error"] or "none")
             icon, state_class = STATE_INDICATORS.get(row["state"], ("●", "unknown"))
             values["state_indicator"] = (
                 f'<span class="state-indicator state-{state_class}" '
@@ -430,7 +443,7 @@ class _Handler(BaseHTTPRequestHandler):
         stream_params["after"] = str(cursor)
         stream_url = "/api/tail?" + "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in stream_params.items())
         self._page(
-            "Live log tail",
+            "Live Tail",
             "tail.html",
             devices=devices,
             levels=levels,

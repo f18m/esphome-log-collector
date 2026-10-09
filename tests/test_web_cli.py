@@ -54,6 +54,8 @@ def test_status_page_and_api(web):
     assert "<h1>" not in body
     assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
     assert '<td class="address">1.1.1.1</td>' in body
+    assert "<th>Log lines</th>" in body and "<td>31</td>" in body
+    assert "<td>-</td><td>none</td>" in body
     css = get(base + "/static/app.css")[1]
     assert "td.address" in css and "font-family: ui-monospace" in css
     assert json.loads(get(base + "/api/status")[1])[0]["device"] == "a"
@@ -67,6 +69,9 @@ def test_static_assets(web):
     status, script, headers = get(base + "/static/tail.js")
     assert status == 200 and headers["Content-Type"].startswith("text/javascript")
     assert "new EventSource" in script
+    status, script, headers = get(base + "/static/ui.js")
+    assert status == 200 and headers["Content-Type"].startswith("text/javascript")
+    assert "sessionStorage" in script and "data-font-target" in script
     assert get(base + "/static/missing.js")[0] == 404
 
 
@@ -76,6 +81,7 @@ def test_log_search_filters_and_pagination(web):
     assert '<a href="/logs" class="active" aria-current="page">Logs</a>' in page
     assert '<div class="log-table-scroll">' in page
     assert '<table class="log-table">' in page
+    assert 'data-font-target="logs"' in page and "Increase log font size" in page
     css = get(base + "/static/app.css")[1]
     assert ".log-table td" in css and "font-family: ui-monospace" in css
     assert ".log-table-scroll" in css and "overflow: auto" in css
@@ -96,8 +102,9 @@ def test_log_search_filters_and_pagination(web):
 def test_tail_page_and_live_stream(web):
     base, _, cfg = web
     status, body, headers = get(base + "/tail?device=a")
-    assert status == 200 and "<title>Live log tail</title>" in body and "/static/tail.js" in body
-    assert '<a href="/tail" class="active" aria-current="page">Tail</a>' in body
+    assert status == 200 and "<title>Live Tail</title>" in body and "/static/tail.js" in body
+    assert '<a href="/tail" class="active" aria-current="page">Live Tail</a>' in body
+    assert 'data-font-target="tail"' in body and "Increase Live Tail font size" in body
     assert 'class="terminal"' in body and "<table" not in body
     assert "[E][x:1]: failure 100%_done" in body
     assert "script-src 'self'" in headers["Content-Security-Policy"]

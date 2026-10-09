@@ -4,8 +4,12 @@
     Level <select name="level"><option value="">any</option>${levels}</select>
     Type <select name="type"><option value="">any</option>${types}</select>
     Text <input name="q" value="${query}">
-    <button>Tail</button>
+    <button>Live Tail</button>
   </form>
+  <div class="font-controls" role="group" aria-label="Live Tail font size">
+    <button type="button" data-font-target="tail" data-font-step="-1" aria-label="Decrease Live Tail font size" title="Decrease Live Tail font size">A−</button>
+    <button type="button" data-font-target="tail" data-font-step="1" aria-label="Increase Live Tail font size" title="Increase Live Tail font size">A+</button>
+  </div>
   <p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>
 </div>
 <div id="tail-rows" class="terminal" data-stream-url="${stream_url}">${rows}</div>

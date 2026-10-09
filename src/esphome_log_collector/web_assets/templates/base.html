@@ -5,12 +5,13 @@
   <title>${title}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/ui.js" defer></script>
 </head>
 <body>
   <nav>
     <a href="/" class="${status_class}" ${status_current}>Status</a>
     <a href="/logs" class="${logs_class}" ${logs_current}>Logs</a>
-    <a href="/tail" class="${tail_class}" ${tail_current}>Tail</a>
+    <a href="/tail" class="${tail_class}" ${tail_current}>Live Tail</a>
     <a href="/exports" class="${exports_class}" ${exports_current}>Exports</a>
   </nav>
   <main class="${page_class}">${content}</main>
