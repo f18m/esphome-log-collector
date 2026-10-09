@@ -30,9 +30,141 @@ from .timeutil import parse_ts
 log = logging.getLogger("web")
 MAX_POST_BYTES = 64 * 1024
 EVENT_TYPES = (LOG, *COLLECTOR_EVENTS)
-_STYLE = ("body{font-family:sans-serif;margin:1em}table{border-collapse:collapse}td,th{border:1px solid #ccc;"
-          "padding:2px 6px;font-size:13px;vertical-align:top}td.m{font-family:monospace;white-space:pre-wrap}"
-          ".ERROR,.CRITICAL{color:#b00}.WARNING{color:#a60}nav a{margin-right:1em}")
+_STYLE = """
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1e293b;
+  background: #eef3f9;
+}
+* { box-sizing: border-box; }
+body {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background: radial-gradient(ellipse at top left, #fff 0, #f4f7fb 58%, #eaf0f8 100%);
+  min-height: 100vh;
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: .4rem;
+  width: fit-content;
+  background: #e7edf6;
+  border: 1px solid #d7e0ec;
+  border-radius: 999px;
+}
+a {
+  color: #155eef;
+  text-decoration: none;
+}
+nav a {
+  padding: .55rem .9rem;
+  color: #475569;
+  font-size: .9rem;
+  font-weight: 650;
+  border-radius: 999px;
+}
+nav a:hover, nav a:focus-visible {
+  color: #123ea8;
+  background: #fff;
+  outline: none;
+}
+h1 {
+  margin: 1.5rem 0 1rem;
+  color: #172554;
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  letter-spacing: -.04em;
+}
+form, ul {
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #dce5f0;
+  border-radius: 1rem;
+  box-shadow: 0 8px 24px #1e293b0b;
+}
+form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .7rem;
+}
+form p { margin: 0; }
+input, select, button {
+  min-height: 2.5rem;
+  padding: .5rem .7rem;
+  color: #1e293b;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: .55rem;
+}
+input:focus, select:focus, button:focus-visible {
+  border-color: #528bff;
+  outline: 3px solid #528bff35;
+}
+button {
+  padding-inline: 1rem;
+  color: #fff;
+  font-weight: 700;
+  background: #2563eb;
+  border-color: #2563eb;
+  cursor: pointer;
+}
+button:hover { background: #1d4ed8; }
+table {
+  width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dce5f0;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 1rem;
+  box-shadow: 0 8px 24px #1e293b0b;
+}
+td, th {
+  padding: .7rem .8rem;
+  border-bottom: 1px solid #e8edf4;
+  font-size: .84rem;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  position: sticky;
+  top: 0;
+  color: #475569;
+  font-size: .75rem;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  background: #f5f8fc;
+}
+tr:last-child td { border-bottom: 0; }
+tr:hover td { background: #f7faff; }
+td.m {
+  max-width: 48rem;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ERROR, .CRITICAL {
+  color: #b42318;
+  font-weight: 750;
+  background: #fff1f0;
+}
+.WARNING { color: #a15c00; font-weight: 700; }
+ul { padding-left: 2.25rem; }
+li { padding: .25rem 0; }
+p { line-height: 1.6; }
+@media (max-width: 760px) {
+  body { padding: 1rem .75rem; }
+  table { display: block; overflow-x: auto; }
+  td.m { min-width: 20rem; }
+}
+"""
 
 
 class BadRequest(Exception):
@@ -135,6 +267,7 @@ class _Handler(BaseHTTPRequestHandler):
     def _page(self, title: str, body: str, status: int = 200) -> None:
         nav = '<nav><a href="/">Status</a><a href="/logs">Logs</a><a href="/exports">Exports</a></nav>'
         doc = (f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>"
+               "<meta name='viewport' content='width=device-width, initial-scale=1'>"
                f"<style>{_STYLE}</style></head><body>{nav}<h1>{html.escape(title)}</h1>{body}</body></html>")
         self._send(status, doc.encode("utf-8"))
 
