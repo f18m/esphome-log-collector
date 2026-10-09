@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import random
+import re
 import signal
 import time
 from dataclasses import dataclass
@@ -28,6 +29,10 @@ MAX_LINE_BYTES = 1024 * 1024  # longer lines are split into several events
 READ_CHUNK = 64 * 1024
 HEARTBEAT_SECONDS = 10.0
 _ENV_PASSTHROUGH = ("PATH", "HOME", "LANG", "LC_ALL", "TZ", "VIRTUAL_ENV", "SSL_CERT_FILE", "PYTHONPATH")
+_DIAGNOSTIC_LINE = re.compile(
+    r"failed config|failed to|error|exception|invalid|not found|no such file|could not|unable to|traceback",
+    re.IGNORECASE,
+)
 
 
 class Backoff:
@@ -102,7 +107,10 @@ class DeviceCollector:
         self.session_id = ""
         self.lines = 0
         self.connected = False
-        self.recent_output: deque[str] = deque(maxlen=12)
+        self.output_line_number = 0
+        self.initial_output: list[tuple[int, str]] = []
+        self.recent_output: deque[tuple[int, str]] = deque(maxlen=16)
+        self.diagnostic_output: deque[tuple[int, str]] = deque(maxlen=8)
         self.redactor = Redactor(
             config.capture.extra_key_patterns,
             config.capture.extra_value_patterns,
@@ -125,7 +133,13 @@ class DeviceCollector:
 
     def _line(self, text: str) -> None:
         text = self.redactor.redact_line(text)
-        self.recent_output.append(text[:400])
+        self.output_line_number += 1
+        entry = (self.output_line_number, text[:400])
+        if len(self.initial_output) < 8:
+            self.initial_output.append(entry)
+        self.recent_output.append(entry)
+        if _DIAGNOSTIC_LINE.search(text):
+            self.diagnostic_output.append(entry)
         ts = self.storage.add_log(self.device.name, self.address, self.session_id, text)
         self.lines += 1
         if self.raw_file:
@@ -204,7 +218,10 @@ class DeviceCollector:
     # ---- backends ---------------------------------------------------------------
     async def _session_cli(self) -> SessionResult:
         argv = build_logs_command(self.config.esphome_command, self.device)
+        self.output_line_number = 0
+        self.initial_output.clear()
         self.recent_output.clear()
+        self.diagnostic_output.clear()
         self.redactor.reset()
         secrets = [self.device.logs.mqtt_password.reveal()] if self.device.logs.mqtt_password else []
         log.info("device %s: starting %s", self.device.name, " ".join(redact_argv(argv, secrets)))
@@ -249,8 +266,23 @@ class DeviceCollector:
             return SessionResult(reason)
         if code == 0:
             return SessionResult(f"esphome exited with code {code}")
-        tail = "\n".join(line for line in self.recent_output if line)
-        detail = f"; recent output:\n{tail}" if tail else ""
+        output = {
+            line_number: line
+            for line_number, line in (
+                *self.initial_output,
+                *self.diagnostic_output,
+                *self.recent_output,
+            )
+            if line
+        }
+        excerpts: list[str] = []
+        previous_line = 0
+        for line_number, line in sorted(output.items()):
+            if previous_line and line_number > previous_line + 1:
+                excerpts.append(f"... {line_number - previous_line - 1} lines omitted ...")
+            excerpts.append(line)
+            previous_line = line_number
+        detail = f"; diagnostic output:\n{chr(10).join(excerpts)}" if excerpts else ""
         return SessionResult(f"esphome exited with code {code}",
                              f"esphome logs exited with code {code}{detail}")
 
