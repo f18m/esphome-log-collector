@@ -15,6 +15,7 @@ import os
 import secrets
 import sqlite3
 import threading
+import time
 from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -175,7 +176,7 @@ def _like_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def query_logs(conn: sqlite3.Connection, params: dict[str, str], page: int, page_size: int) -> tuple[list[sqlite3.Row], bool]:
+def _log_filters(params: dict[str, str]) -> tuple[list[str], list[str]]:
     where, args = [], []
     if params.get("device"):
         where.append("device = ?")
@@ -202,12 +203,26 @@ def query_logs(conn: sqlite3.Connection, params: dict[str, str], page: int, page
     if params.get("q"):
         where.append("raw LIKE ? ESCAPE '\\'")
         args.append(f"%{_like_escape(params['q'])}%")
+    return where, args
+
+
+def query_logs(conn: sqlite3.Connection, params: dict[str, str], page: int, page_size: int) -> tuple[list[sqlite3.Row], bool]:
+    where, args = _log_filters(params)
     sql = "SELECT id, ts, device, session_id, event_type, level, component, message, raw FROM events"
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?"
     rows = conn.execute(sql, (*args, page_size + 1, (page - 1) * page_size)).fetchall()
     return rows[:page_size], len(rows) > page_size
+
+
+def query_new_logs(conn: sqlite3.Connection, params: dict[str, str], after: int) -> list[sqlite3.Row]:
+    where, args = _log_filters(params)
+    where.append("id > ?")
+    args.append(str(after))
+    sql = "SELECT id, ts, device, session_id, event_type, level, component, message, raw FROM events"
+    sql += " WHERE " + " AND ".join(where) + " ORDER BY id LIMIT 200"
+    return conn.execute(sql, args).fetchall()
 
 
 class WebServer:
@@ -245,12 +260,16 @@ class _Handler(BaseHTTPRequestHandler):
     app: WebServer
     server_version = "esphome-log-collector"
     sys_version = ""
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt: str, *args) -> None:  # route access logs to the container log
         log.debug("%s - %s", self.address_string(), fmt % args)
 
     # ---- plumbing ----
-    def _send(self, status: int, body: bytes, ctype: str = "text/html; charset=utf-8", extra: dict | None = None) -> None:
+    def _send(
+        self, status: int, body: bytes, ctype: str = "text/html; charset=utf-8", extra: dict | None = None,
+        script_nonce: str | None = None,
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -258,18 +277,21 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+        csp = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+        if script_nonce:
+            csp += f"; script-src 'nonce-{script_nonce}'; connect-src 'self'"
+        self.send_header("Content-Security-Policy", csp)
         for k, v in (extra or {}).items():
             self.send_header(k, v.replace("\r", "").replace("\n", ""))  # never allow header injection
         self.end_headers()
         self.wfile.write(body)
 
-    def _page(self, title: str, body: str, status: int = 200) -> None:
-        nav = '<nav><a href="/">Status</a><a href="/logs">Logs</a><a href="/exports">Exports</a></nav>'
+    def _page(self, title: str, body: str, status: int = 200, script_nonce: str | None = None) -> None:
+        nav = '<nav><a href="/">Status</a><a href="/logs">Logs</a><a href="/tail">Tail</a><a href="/exports">Exports</a></nav>'
         doc = (f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>"
                "<meta name='viewport' content='width=device-width, initial-scale=1'>"
                f"<style>{_STYLE}</style></head><body>{nav}<h1>{html.escape(title)}</h1>{body}</body></html>")
-        self._send(status, doc.encode("utf-8"))
+        self._send(status, doc.encode("utf-8"), script_nonce=script_nonce)
 
     def _json(self, payload, status: int = 200) -> None:
         self._send(status, json.dumps(payload).encode("utf-8"), "application/json")
@@ -318,6 +340,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._status_page()
         if path == "/logs":
             return self._logs_page(p)
+        if path == "/tail":
+            return self._tail_page(p)
         if path == "/exports":
             return self._exports_page()
         if path.startswith("/exports/"):
@@ -328,6 +352,8 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/logs":
             rows, more, _ = self._fetch_logs(p)
             return self._json({"events": [{**dict(r), "clean": strip_ansi(r["raw"])} for r in rows], "has_next": more})
+        if path == "/api/tail":
+            return self._tail_stream(p)
         self._page("Not found", "<p>Not found.</p>", 404)
 
     def _route_post(self, path: str) -> None:
@@ -411,6 +437,106 @@ class _Handler(BaseHTTPRequestHandler):
         pager = (link(page - 1, "&laquo; newer") if page > 1 else "") + f"page {page} " + (link(page + 1, "older &raquo;") if more else "")
         self._page("Logs", f"{form}<p>{pager}</p><table><tr><th>Time (UTC)</th><th>Device</th><th>Level</th>"
                            f"<th>Component</th><th>Type</th><th>Line (ANSI removed)</th></tr>{body_rows}</table><p>{pager}</p>")
+
+    def _tail_page(self, p: dict[str, str]) -> None:
+        size = min(500, max(1, self.app.config.web.page_size))
+        with self._db() as conn:
+            conn.execute("BEGIN")
+            rows, _ = query_logs(conn, p, 1, size)
+            cursor = conn.execute("SELECT COALESCE(MAX(id), 0) FROM events").fetchone()[0]
+            conn.commit()
+
+        esc = html.escape
+        devices = "".join(f"<option{' selected' if d == p.get('device') else ''}>{esc(d)}</option>" for d in self._devices())
+        levels = "".join(f"<option{' selected' if v == p.get('level') else ''}>{v}</option>" for v in LEVELS.values())
+        types = "".join(f"<option{' selected' if t == p.get('type') else ''}>{t}</option>" for t in EVENT_TYPES)
+        form = (f"<form method='get' action='/tail'>Device <select name='device'><option value=''>all</option>{devices}</select> "
+                f"Level <select name='level'><option value=''>any</option>{levels}</select> "
+                f"Type <select name='type'><option value=''>any</option>{types}</select> "
+                f"Text <input name='q' value='{esc(p.get('q', ''), True)}'> <button>Tail</button></form>")
+        body_rows = "".join(
+            f"<tr><td>{esc(r['ts'])}</td><td>{esc(r['device'])}</td><td class='{esc(r['level'] or '')}'>{esc(r['level'] or '')}</td>"
+            f"<td>{esc(r['component'] or '')}</td><td>{'' if r['event_type'] == LOG else '<b>[' + esc(r['event_type']) + ']</b> '}"
+            f"</td><td class='m'>{esc(strip_ansi(r['raw']))}</td></tr>" for r in reversed(rows)
+        )
+        stream_params = {k: v for k, v in p.items() if k in {"device", "level", "type", "q"} and v}
+        stream_params["after"] = str(cursor)
+        stream_url = "/api/tail?" + "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in stream_params.items())
+        nonce = secrets.token_urlsafe(18)
+        script = f"""<script nonce="{nonce}">
+const tailState = document.getElementById("tail-state");
+const tailRows = document.querySelector("#tail-rows");
+const source = new EventSource({json.dumps(stream_url)});
+source.onopen = () => {{ tailState.textContent = "Live"; }};
+source.onerror = () => {{ tailState.textContent = "Reconnecting…"; }};
+source.onmessage = (message) => {{
+  const event = JSON.parse(message.data);
+  const row = document.createElement("tr");
+  for (const value of [event.ts, event.device, event.level || "", event.component || ""]) {{
+    const cell = document.createElement("td");
+    cell.textContent = value;
+    row.appendChild(cell);
+  }}
+  const typeCell = document.createElement("td");
+  typeCell.textContent = event.event_type === "log" ? "" : "[" + event.event_type + "]";
+  row.appendChild(typeCell);
+  const lineCell = document.createElement("td");
+  lineCell.className = "m";
+  lineCell.textContent = event.clean;
+  row.appendChild(lineCell);
+  const stayAtBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 40;
+  tailRows.appendChild(row);
+  while (tailRows.rows.length > 500) tailRows.deleteRow(0);
+  if (stayAtBottom) window.scrollTo(0, document.body.scrollHeight);
+}};
+window.scrollTo(0, document.body.scrollHeight);
+</script>"""
+        self._page("Live log tail", f"{form}<p>Stream: <strong id='tail-state' aria-live='polite'>Connecting…</strong></p>"
+                                   "<table><thead><tr><th>Time (UTC)</th><th>Device</th><th>Level</th><th>Component</th>"
+                                   "<th>Type</th><th>Line (ANSI removed)</th></tr></thead>"
+                                   f"<tbody id='tail-rows'>{body_rows}</tbody></table>{script}", script_nonce=nonce)
+
+    def _tail_stream(self, p: dict[str, str]) -> None:
+        try:
+            after = int(self.headers.get("Last-Event-ID") or p.get("after", "0"))
+            if after < 0:
+                raise ValueError
+        except ValueError as err:
+            raise BadRequest("after must be a non-negative integer") from err
+        _log_filters(p)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+        self.end_headers()
+        self.wfile.write(b": connected\n\n")
+        self.wfile.flush()
+        last_heartbeat = time.monotonic()
+        try:
+            while True:
+                with self._db() as conn:
+                    rows = query_new_logs(conn, p, after)
+                for row in rows:
+                    event = {**dict(row), "clean": strip_ansi(row["raw"])}
+                    payload = json.dumps(event, ensure_ascii=False).encode("utf-8")
+                    self.wfile.write(f"id: {row['id']}\ndata: ".encode("ascii") + payload + b"\n\n")
+                    self.wfile.flush()
+                    after = row["id"]
+                now = time.monotonic()
+                if now - last_heartbeat >= 15:
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+                    last_heartbeat = now
+                time.sleep(0.5)
+        except ConnectionError:
+            return
+        except sqlite3.Error:
+            log.exception("web UI tail stream database error")
+            return
 
     def _export_files(self) -> list[Path]:
         d = self.app.config.export_dir
