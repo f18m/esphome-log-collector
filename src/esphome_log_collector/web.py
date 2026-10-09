@@ -17,8 +17,11 @@ import sqlite3
 import threading
 import time
 from contextlib import closing
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib.resources import files
 from pathlib import Path
+from string import Template
 from urllib.parse import parse_qs, quote, urlparse
 
 from .config import Config
@@ -31,141 +34,27 @@ from .timeutil import parse_ts
 log = logging.getLogger("web")
 MAX_POST_BYTES = 64 * 1024
 EVENT_TYPES = (LOG, *COLLECTOR_EVENTS)
-_STYLE = """
-:root {
-  color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #1e293b;
-  background: #eef3f9;
+STATE_INDICATORS = {
+    "connected": ("●", "connected"),
+    "starting": ("◌", "starting"),
+    "connecting": ("◌", "connecting"),
+    "backoff": ("↻", "backoff"),
+    "stopped": ("■", "stopped"),
 }
-* { box-sizing: border-box; }
-body {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: clamp(1rem, 3vw, 2.5rem);
-  background: radial-gradient(ellipse at top left, #fff 0, #f4f7fb 58%, #eaf0f8 100%);
-  min-height: 100vh;
+STATIC_ASSETS = {
+    "/static/app.css": ("app.css", "text/css; charset=utf-8"),
+    "/static/tail.js": ("tail.js", "text/javascript; charset=utf-8"),
 }
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .5rem;
-  padding: .4rem;
-  width: fit-content;
-  background: #e7edf6;
-  border: 1px solid #d7e0ec;
-  border-radius: 999px;
-}
-a {
-  color: #155eef;
-  text-decoration: none;
-}
-nav a {
-  padding: .55rem .9rem;
-  color: #475569;
-  font-size: .9rem;
-  font-weight: 650;
-  border-radius: 999px;
-}
-nav a:hover, nav a:focus-visible {
-  color: #123ea8;
-  background: #fff;
-  outline: none;
-}
-h1 {
-  margin: 1.5rem 0 1rem;
-  color: #172554;
-  font-size: clamp(1.7rem, 4vw, 2.4rem);
-  letter-spacing: -.04em;
-}
-form, ul {
-  padding: 1rem;
-  background: #fff;
-  border: 1px solid #dce5f0;
-  border-radius: 1rem;
-  box-shadow: 0 8px 24px #1e293b0b;
-}
-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .7rem;
-}
-form p { margin: 0; }
-input, select, button {
-  min-height: 2.5rem;
-  padding: .5rem .7rem;
-  color: #1e293b;
-  font: inherit;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: .55rem;
-}
-input:focus, select:focus, button:focus-visible {
-  border-color: #528bff;
-  outline: 3px solid #528bff35;
-}
-button {
-  padding-inline: 1rem;
-  color: #fff;
-  font-weight: 700;
-  background: #2563eb;
-  border-color: #2563eb;
-  cursor: pointer;
-}
-button:hover { background: #1d4ed8; }
-table {
-  width: 100%;
-  margin: 1rem 0;
-  overflow: hidden;
-  background: #fff;
-  border: 1px solid #dce5f0;
-  border-collapse: separate;
-  border-spacing: 0;
-  border-radius: 1rem;
-  box-shadow: 0 8px 24px #1e293b0b;
-}
-td, th {
-  padding: .7rem .8rem;
-  border-bottom: 1px solid #e8edf4;
-  font-size: .84rem;
-  text-align: left;
-  vertical-align: top;
-}
-th {
-  position: sticky;
-  top: 0;
-  color: #475569;
-  font-size: .75rem;
-  font-weight: 750;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  background: #f5f8fc;
-}
-tr:last-child td { border-bottom: 0; }
-tr:hover td { background: #f7faff; }
-td.m {
-  max-width: 48rem;
-  color: #334155;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.ERROR, .CRITICAL {
-  color: #b42318;
-  font-weight: 750;
-  background: #fff1f0;
-}
-.WARNING { color: #a15c00; font-weight: 700; }
-ul { padding-left: 2.25rem; }
-li { padding: .25rem 0; }
-p { line-height: 1.6; }
-@media (max-width: 760px) {
-  body { padding: 1rem .75rem; }
-  table { display: block; overflow-x: auto; }
-  td.m { min-width: 20rem; }
-}
-"""
+
+
+@lru_cache(maxsize=None)
+def _template(name: str) -> Template:
+    source = files(__package__).joinpath("web_assets", "templates", name).read_text(encoding="utf-8")
+    return Template(source)
+
+
+def _render(template_name: str, **values: str) -> str:
+    return _template(template_name).substitute(values)
 
 
 class BadRequest(Exception):
@@ -268,7 +157,6 @@ class _Handler(BaseHTTPRequestHandler):
     # ---- plumbing ----
     def _send(
         self, status: int, body: bytes, ctype: str = "text/html; charset=utf-8", extra: dict | None = None,
-        script_nonce: str | None = None,
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", ctype)
@@ -277,21 +165,37 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", "no-store")
-        csp = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
-        if script_nonce:
-            csp += f"; script-src 'nonce-{script_nonce}'; connect-src 'self'"
-        self.send_header("Content-Security-Policy", csp)
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; "
+            "form-action 'self'; frame-ancestors 'none'",
+        )
         for k, v in (extra or {}).items():
             self.send_header(k, v.replace("\r", "").replace("\n", ""))  # never allow header injection
         self.end_headers()
         self.wfile.write(body)
 
-    def _page(self, title: str, body: str, status: int = 200, script_nonce: str | None = None) -> None:
-        nav = '<nav><a href="/">Status</a><a href="/logs">Logs</a><a href="/tail">Tail</a><a href="/exports">Exports</a></nav>'
-        doc = (f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>"
-               "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-               f"<style>{_STYLE}</style></head><body>{nav}<h1>{html.escape(title)}</h1>{body}</body></html>")
-        self._send(status, doc.encode("utf-8"), script_nonce=script_nonce)
+    def _page(self, title: str, template: str, status: int = 200, **values: str) -> None:
+        content = _render(template, **values)
+        path = urlparse(self.path).path
+        active_page = (
+            "status" if path == "/" else
+            "logs" if path == "/logs" else
+            "tail" if path == "/tail" else
+            "exports" if path == "/exports" or path.startswith("/exports/") else
+            ""
+        )
+        document_values = {
+            "title": html.escape(title),
+            "content": content,
+            "page_class": f"{active_page}-page" if active_page in {"logs", "tail"} else "",
+        }
+        for page in ("status", "logs", "tail", "exports"):
+            selected = page == active_page
+            document_values[f"{page}_class"] = "active" if selected else ""
+            document_values[f"{page}_current"] = 'aria-current="page"' if selected else ""
+        document = _render("base.html", **document_values)
+        self._send(status, document.encode("utf-8"))
 
     def _json(self, payload, status: int = 200) -> None:
         self._send(status, json.dumps(payload).encode("utf-8"), "application/json")
@@ -314,14 +218,19 @@ class _Handler(BaseHTTPRequestHandler):
         params = {k: v[0] for k, v in parse_qs(url.query, max_num_fields=20).items()}
         try:
             if method == "GET":
-                self._route_get(url.path, params)
+                if url.path in STATIC_ASSETS:
+                    filename, content_type = STATIC_ASSETS[url.path]
+                    body = files(__package__).joinpath("web_assets", "static", filename).read_bytes()
+                    self._send(200, body, content_type)
+                else:
+                    self._route_get(url.path, params)
             else:
                 self._route_post(url.path)
         except BadRequest as err:
-            self._page("Bad request", f"<p>{html.escape(str(err))}</p>", 400)
+            self._page("Bad request", "message.html", 400, message=html.escape(str(err)))
         except sqlite3.Error as err:
             log.error("web UI database error: %s", err)
-            self._page("Database unavailable", "<p>The collector database could not be read.</p>", 503)
+            self._page("Database unavailable", "message.html", 503, message="The collector database could not be read.")
 
     def do_GET(self) -> None:  # noqa: N802
         self._dispatch("GET")
@@ -354,11 +263,11 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json({"events": [{**dict(r), "clean": strip_ansi(r["raw"])} for r in rows], "has_next": more})
         if path == "/api/tail":
             return self._tail_stream(p)
-        self._page("Not found", "<p>Not found.</p>", 404)
+        self._page("Not found", "message.html", 404, message="Not found.")
 
     def _route_post(self, path: str) -> None:
         if path != "/export":
-            return self._page("Not found", "<p>Not found.</p>", 404)
+            return self._page("Not found", "message.html", 404, message="Not found.")
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError as err:
@@ -368,7 +277,10 @@ class _Handler(BaseHTTPRequestHandler):
         form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"), max_num_fields=50)
         token = (form.get("csrf") or [""])[0]
         if not hmac.compare_digest(token, self.app.csrf_token):
-            return self._page("Forbidden", "<p>Invalid or missing CSRF token; reload the form.</p>", 403)
+            return self._page(
+                "Forbidden", "message.html", 403,
+                message="Invalid or missing CSRF token; reload the form.",
+            )
         try:
             path_out = create_export(
                 self.app.config.db_path, self.app.config.export_dir,
@@ -400,43 +312,107 @@ class _Handler(BaseHTTPRequestHandler):
         with self._db() as conn:
             return [r[0] for r in conn.execute("SELECT device FROM device_status ORDER BY device")]
 
+    def _options(self, values, selected: str | None) -> str:
+        return "".join(
+            _render(
+                "log_options.html",
+                value=html.escape(value, quote=True),
+                label=html.escape(value),
+                selected=" selected" if value == selected else "",
+            )
+            for value in values
+        )
+
+    def _log_rows(self, rows) -> str:
+        rendered = []
+        for row in rows:
+            event_marker = ""
+            if row["event_type"] != LOG:
+                event_marker = _render(
+                    "event_marker.html",
+                    event_type=html.escape(row["event_type"]),
+                ) + " "
+            rendered.append(
+                _render(
+                    "log_row.html",
+                    ts=html.escape(row["ts"]),
+                    device=html.escape(row["device"]),
+                    level_class=html.escape(row["level"] or "", quote=True),
+                    level=html.escape(row["level"] or ""),
+                    component=html.escape(row["component"] or ""),
+                    event_marker=event_marker,
+                    line=html.escape(strip_ansi(row["raw"])),
+                )
+            )
+        return "".join(rendered)
+
+    def _tail_lines(self, rows) -> str:
+        rendered = []
+        for row in rows:
+            event_marker = "" if row["event_type"] == LOG else f"[{html.escape(row['event_type'])}]"
+            rendered.append(
+                _render(
+                    "tail_line.html",
+                    ts=html.escape(row["ts"]),
+                    device=html.escape(row["device"]),
+                    level=html.escape(row["level"] or ""),
+                    component=html.escape(row["component"] or ""),
+                    event_marker=event_marker,
+                    line=html.escape(strip_ansi(row["raw"])),
+                )
+            )
+        return "".join(rendered)
+
     def _status_page(self) -> None:
         with self._db() as conn:
             rows = conn.execute("SELECT * FROM device_status ORDER BY device").fetchall()
-        cells = "".join(
-            "<tr>" + "".join(f"<td>{html.escape(str(r[k] if r[k] is not None else ''))}</td>" for k in
-                             ("device", "address", "backend", "source", "state", "last_line_at", "attempts",
-                              "next_retry_at", "last_error")) + "</tr>"
-            for r in rows)
-        head = "".join(f"<th>{h}</th>" for h in ("Device", "Address", "Backend", "Source", "State", "Last line (UTC)",
-                                                  "Attempts", "Next retry (UTC)", "Last error"))
-        self._page("Collector status", f"<table><tr>{head}</tr>{cells}</table>")
+        columns = (
+            "device", "address", "backend", "source", "state", "last_line_at", "attempts",
+            "next_retry_at", "last_error",
+        )
+        rendered = []
+        for row in rows:
+            values = {
+                key: html.escape(str(row[key] if row[key] is not None else ""))
+                for key in columns
+            }
+            icon, state_class = STATE_INDICATORS.get(row["state"], ("●", "unknown"))
+            values["state_indicator"] = (
+                f'<span class="state-indicator state-{state_class}" '
+                f'title="{values["state"]}" aria-label="{values["state"]}">{icon}</span>'
+            )
+            rendered.append(_render("status_row.html", **values))
+        self._page("Collector status", "status.html", rows="".join(rendered))
 
     def _logs_page(self, p: dict[str, str]) -> None:
         rows, more, page = self._fetch_logs(p)
-        esc = html.escape
-        devices = "".join(f"<option{' selected' if d == p.get('device') else ''}>{esc(d)}</option>" for d in self._devices())
-        levels = "".join(f"<option{' selected' if v == p.get('level') else ''}>{v}</option>" for v in LEVELS.values())
-        types = "".join(f"<option{' selected' if t == p.get('type') else ''}>{t}</option>" for t in EVENT_TYPES)
-        form = (f"<form method='get' action='/logs'>Device <select name='device'><option value=''>all</option>{devices}</select> "
-                f"Level <select name='level'><option value=''>any</option>{levels}</select> "
-                f"Type <select name='type'><option value=''>any</option>{types}</select> "
-                f"From <input name='start' value='{esc(p.get('start', ''), True)}' placeholder='2025-01-31T12:00:00Z'> "
-                f"To <input name='end' value='{esc(p.get('end', ''), True)}'> "
-                f"Text <input name='q' value='{esc(p.get('q', ''), True)}'> <button>Search</button></form>")
-        body_rows = "".join(
-            f"<tr><td>{esc(r['ts'])}</td><td>{esc(r['device'])}</td><td class='{esc(r['level'] or '')}'>{esc(r['level'] or '')}</td>"
-            f"<td>{esc(r['component'] or '')}</td><td>{'' if r['event_type'] == LOG else '<b>[' + esc(r['event_type']) + ']</b> '}"
-            f"</td><td class='m'>{esc(strip_ansi(r['raw']))}</td></tr>" for r in rows)
+        devices = self._options(self._devices(), p.get("device"))
+        levels = self._options(list(LEVELS.values()), p.get("level"))
+        types = self._options(list(EVENT_TYPES), p.get("type"))
+        body_rows = self._log_rows(rows)
         base = {k: v for k, v in p.items() if k != "page" and v}
 
         def link(n: int, label: str) -> str:
             qs = "&".join(f"{quote(k)}={quote(v)}" for k, v in {**base, "page": str(n)}.items())
-            return f"<a href='/logs?{esc(qs, True)}'>{label}</a> "
+            return _render("pager_link.html", query=html.escape(qs, quote=True), label=label)
 
-        pager = (link(page - 1, "&laquo; newer") if page > 1 else "") + f"page {page} " + (link(page + 1, "older &raquo;") if more else "")
-        self._page("Logs", f"{form}<p>{pager}</p><table><tr><th>Time (UTC)</th><th>Device</th><th>Level</th>"
-                           f"<th>Component</th><th>Type</th><th>Line (ANSI removed)</th></tr>{body_rows}</table><p>{pager}</p>")
+        pager = (
+            (link(page - 1, "&laquo; newer") + " " if page > 1 else "")
+            + f"page {page} "
+            + (link(page + 1, "older &raquo;") if more else "")
+        )
+        self._page(
+            "Logs",
+            "logs.html",
+            devices=devices,
+            levels=levels,
+            types=types,
+            start=html.escape(p.get("start", ""), quote=True),
+            end=html.escape(p.get("end", ""), quote=True),
+            query=html.escape(p.get("q", ""), quote=True),
+            pager=pager,
+            rows=body_rows,
+        )
 
     def _tail_page(self, p: dict[str, str]) -> None:
         size = min(500, max(1, self.app.config.web.page_size))
@@ -446,55 +422,23 @@ class _Handler(BaseHTTPRequestHandler):
             cursor = conn.execute("SELECT COALESCE(MAX(id), 0) FROM events").fetchone()[0]
             conn.commit()
 
-        esc = html.escape
-        devices = "".join(f"<option{' selected' if d == p.get('device') else ''}>{esc(d)}</option>" for d in self._devices())
-        levels = "".join(f"<option{' selected' if v == p.get('level') else ''}>{v}</option>" for v in LEVELS.values())
-        types = "".join(f"<option{' selected' if t == p.get('type') else ''}>{t}</option>" for t in EVENT_TYPES)
-        form = (f"<form method='get' action='/tail'>Device <select name='device'><option value=''>all</option>{devices}</select> "
-                f"Level <select name='level'><option value=''>any</option>{levels}</select> "
-                f"Type <select name='type'><option value=''>any</option>{types}</select> "
-                f"Text <input name='q' value='{esc(p.get('q', ''), True)}'> <button>Tail</button></form>")
-        body_rows = "".join(
-            f"<tr><td>{esc(r['ts'])}</td><td>{esc(r['device'])}</td><td class='{esc(r['level'] or '')}'>{esc(r['level'] or '')}</td>"
-            f"<td>{esc(r['component'] or '')}</td><td>{'' if r['event_type'] == LOG else '<b>[' + esc(r['event_type']) + ']</b> '}"
-            f"</td><td class='m'>{esc(strip_ansi(r['raw']))}</td></tr>" for r in reversed(rows)
-        )
+        devices = self._options(self._devices(), p.get("device"))
+        levels = self._options(list(LEVELS.values()), p.get("level"))
+        types = self._options(list(EVENT_TYPES), p.get("type"))
+        body_rows = self._tail_lines(reversed(rows))
         stream_params = {k: v for k, v in p.items() if k in {"device", "level", "type", "q"} and v}
         stream_params["after"] = str(cursor)
         stream_url = "/api/tail?" + "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in stream_params.items())
-        nonce = secrets.token_urlsafe(18)
-        script = f"""<script nonce="{nonce}">
-const tailState = document.getElementById("tail-state");
-const tailRows = document.querySelector("#tail-rows");
-const source = new EventSource({json.dumps(stream_url)});
-source.onopen = () => {{ tailState.textContent = "Live"; }};
-source.onerror = () => {{ tailState.textContent = "Reconnecting…"; }};
-source.onmessage = (message) => {{
-  const event = JSON.parse(message.data);
-  const row = document.createElement("tr");
-  for (const value of [event.ts, event.device, event.level || "", event.component || ""]) {{
-    const cell = document.createElement("td");
-    cell.textContent = value;
-    row.appendChild(cell);
-  }}
-  const typeCell = document.createElement("td");
-  typeCell.textContent = event.event_type === "log" ? "" : "[" + event.event_type + "]";
-  row.appendChild(typeCell);
-  const lineCell = document.createElement("td");
-  lineCell.className = "m";
-  lineCell.textContent = event.clean;
-  row.appendChild(lineCell);
-  const stayAtBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 40;
-  tailRows.appendChild(row);
-  while (tailRows.rows.length > 500) tailRows.deleteRow(0);
-  if (stayAtBottom) window.scrollTo(0, document.body.scrollHeight);
-}};
-window.scrollTo(0, document.body.scrollHeight);
-</script>"""
-        self._page("Live log tail", f"{form}<p>Stream: <strong id='tail-state' aria-live='polite'>Connecting…</strong></p>"
-                                   "<table><thead><tr><th>Time (UTC)</th><th>Device</th><th>Level</th><th>Component</th>"
-                                   "<th>Type</th><th>Line (ANSI removed)</th></tr></thead>"
-                                   f"<tbody id='tail-rows'>{body_rows}</tbody></table>{script}", script_nonce=nonce)
+        self._page(
+            "Live log tail",
+            "tail.html",
+            devices=devices,
+            levels=levels,
+            types=types,
+            query=html.escape(p.get("q", ""), quote=True),
+            stream_url=html.escape(stream_url, quote=True),
+            rows=body_rows,
+        )
 
     def _tail_stream(self, p: dict[str, str]) -> None:
         try:
@@ -546,24 +490,37 @@ window.scrollTo(0, document.body.scrollHeight);
                       reverse=True)
 
     def _exports_page(self) -> None:
-        esc = html.escape
-        files = "".join(f"<li><a href='/exports/{esc(f.name, True)}'>{esc(f.name)}</a> ({f.stat().st_size} bytes)</li>"
-                        for f in self._export_files())
-        devices = "".join(f"<label><input type='checkbox' name='device' value='{esc(d, True)}'> {esc(d)}</label> "
-                          for d in self._devices())
-        form = (f"<form method='post' action='/export'><input type='hidden' name='csrf' value='{self.app.csrf_token}'>"
-                f"<p>Devices (none selected = all): {devices}</p>"
-                "<p>From (UTC, inclusive) <input name='start'> To (UTC, exclusive) <input name='end'> "
-                "<label><input type='checkbox' name='include_configs' value='1' checked> sanitized configurations</label> "
-                "<button>Create export</button></p></form>")
-        self._page("Exports", f"{form}<ul>{files}</ul>")
+        rendered_files = "".join(
+            _render(
+                "export_file.html",
+                href=html.escape(file.name, quote=True),
+                name=html.escape(file.name),
+                size=str(file.stat().st_size),
+            )
+            for file in self._export_files()
+        )
+        devices = "".join(
+            _render(
+                "export_device.html",
+                value=html.escape(device, quote=True),
+                label=html.escape(device),
+            )
+            for device in self._devices()
+        )
+        self._page(
+            "Exports",
+            "exports.html",
+            csrf_token=html.escape(self.app.csrf_token, quote=True),
+            devices=devices,
+            files=rendered_files,
+        )
 
     def _download(self, name: str) -> None:
         if not EXPORT_NAME_RE.match(name):  # rejects anything but our own generated names (no traversal)
-            return self._page("Not found", "<p>Not found.</p>", 404)
+            return self._page("Not found", "message.html", 404, message="Not found.")
         path = self.app.config.export_dir / name
         if not path.is_file() or path.is_symlink():
-            return self._page("Not found", "<p>Not found.</p>", 404)
+            return self._page("Not found", "message.html", 404, message="Not found.")
         with path.open("rb") as fh:
             size = os.fstat(fh.fileno()).st_size
             self.send_response(200)

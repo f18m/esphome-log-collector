@@ -1,5 +1,7 @@
 # esphome-log-collector
 
+[![GitHub Tag](https://img.shields.io/github/v/tag/f18m/esphome-log-collector)](https://github.com/f18m/esphome-log-collector/releases)
+[![PyPI - Version](https://img.shields.io/pypi/v/esphome-log-collector)](https://pypi.org/project/esphome-log-collector/)
 [![Docker image workflow](https://github.com/f18m/esphome-log-collector/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/f18m/esphome-log-collector/actions/workflows/docker-publish.yml)
 [![GHCR image: latest](https://img.shields.io/badge/GHCR-latest-2496ED?logo=docker&logoColor=white)](https://github.com/f18m/esphome-log-collector/pkgs/container/esphome-log-collector)
 
@@ -227,6 +229,9 @@ The `latest` tag tracks `main` and tagged releases; version-specific tags are al
 
 Package builds get their version from Git tags (use `vX.Y.Z` for releases); commits after
 a tag get a PEP 440 development version. `0.1.0` is the fallback when SCM metadata is unavailable.
+The web UI templates and static assets live in
+[`src/esphome_log_collector/web_assets/`](src/esphome_log_collector/web_assets/) and are included in
+Python package builds.
 
 ```bash
 python -m venv .venv && . .venv/bin/activate

@@ -49,12 +49,36 @@ def test_status_page_and_api(web):
     base, _, _ = web
     status, body, headers = get(base + "/")
     assert status == 200 and "connected" in body and headers["Content-Security-Policy"].startswith("default-src 'none'")
-    assert "radial-gradient" in body and "name='viewport'" in body
+    assert "/static/app.css" in body and 'name="viewport"' in body
+    assert '<a href="/" class="active" aria-current="page">Status</a>' in body
+    assert "<h1>" not in body
+    assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
+    assert '<td class="address">1.1.1.1</td>' in body
+    css = get(base + "/static/app.css")[1]
+    assert "td.address" in css and "font-family: ui-monospace" in css
     assert json.loads(get(base + "/api/status")[1])[0]["device"] == "a"
+
+
+def test_static_assets(web):
+    base, _, _ = web
+    status, css, headers = get(base + "/static/app.css")
+    assert status == 200 and headers["Content-Type"].startswith("text/css")
+    assert "radial-gradient" in css
+    status, script, headers = get(base + "/static/tail.js")
+    assert status == 200 and headers["Content-Type"].startswith("text/javascript")
+    assert "new EventSource" in script
+    assert get(base + "/static/missing.js")[0] == 404
 
 
 def test_log_search_filters_and_pagination(web):
     base, _, _ = web
+    page = get(base + "/logs")[1]
+    assert '<a href="/logs" class="active" aria-current="page">Logs</a>' in page
+    assert '<div class="log-table-scroll">' in page
+    assert '<table class="log-table">' in page
+    css = get(base + "/static/app.css")[1]
+    assert ".log-table td" in css and "font-family: ui-monospace" in css
+    assert ".log-table-scroll" in css and "overflow: auto" in css
     data = json.loads(get(base + "/api/logs?device=a&q=alpha&page_size=10")[1])
     assert len(data["events"]) == 10 and data["has_next"] is True
     page3 = json.loads(get(base + "/api/logs?device=a&q=alpha&page_size=10&page=3")[1])
@@ -72,8 +96,11 @@ def test_log_search_filters_and_pagination(web):
 def test_tail_page_and_live_stream(web):
     base, _, cfg = web
     status, body, headers = get(base + "/tail?device=a")
-    assert status == 200 and "Live log tail" in body and "new EventSource" in body
-    assert "script-src 'nonce-" in headers["Content-Security-Policy"]
+    assert status == 200 and "<title>Live log tail</title>" in body and "/static/tail.js" in body
+    assert '<a href="/tail" class="active" aria-current="page">Tail</a>' in body
+    assert 'class="terminal"' in body and "<table" not in body
+    assert "[E][x:1]: failure 100%_done" in body
+    assert "script-src 'self'" in headers["Content-Security-Policy"]
     assert "connect-src 'self'" in headers["Content-Security-Policy"]
     assert get(base + "/api/tail?after=invalid")[0] == 400
 
@@ -120,7 +147,9 @@ def test_read_only_methods_and_csrf(web):
 def test_export_create_and_download(web):
     base, server, cfg = web
     page = get(base + "/exports")[1]
-    token = re.search(r"name='csrf' value='([^']+)'", page).group(1)
+    assert '<table class="device-select-table">' in page
+    assert '<input id="export-device-a" type="checkbox" name="device" value="a">' in page
+    token = re.search(r'name="csrf" value="([^"]+)"', page).group(1)
 
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *a, **k):
@@ -132,7 +161,7 @@ def test_export_create_and_download(web):
         opener.open(req)
     assert exc.value.code == 303
     listing = get(base + "/exports")[1]
-    name = re.search(r"/exports/(esphome-log-export-[^']+\.tar\.gz)", listing).group(1)
+    name = re.search(r'/exports/(esphome-log-export-[^"]+\.tar\.gz)', listing).group(1)
     status, _, headers = get(base + "/exports/" + name)
     assert status == 200 and headers["Content-Type"] == "application/gzip"
     for bad in ("../collector.sqlite3", "..%2fcollector.sqlite3", "notes.txt", "%2e%2e/x"):
