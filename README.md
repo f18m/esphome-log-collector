@@ -1,14 +1,20 @@
 # esphome-log-collector
 
+[![Docker image workflow](https://github.com/f18m/esphome-log-collector/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/f18m/esphome-log-collector/actions/workflows/docker-publish.yml)
+[![GHCR image: latest](https://img.shields.io/badge/GHCR-latest-2496ED?logo=docker&logoColor=white)](https://github.com/f18m/esphome-log-collector/pkgs/container/esphome-log-collector)
+
 A Docker-friendly service that continuously collects and retains **ESPHome firmware logs** from many
 devices. It reconnects after device/network outages, keeps logs across container restarts and lets you
 investigate intermittent crashes and reboots after the fact.
 
 It features an SQLite storage, configurable retention, possibility to export tarballs
-with sanitized configuration snapshots and optional a web UI to browse the logs!
+with sanitized configuration snapshots and an optional web UI to browse the logs.
 
 * Pinned ESPHome version: **2026.9.1** (`requirements.txt`).
 * No Home Assistant, Docker socket or systemd required. Explicit IP targets work without mDNS.
+* Integrates with [ESPHome](https://esphome.io/) and its native API library
+  [aioesphomeapi](https://github.com/esphome/aioesphomeapi); optional mDNS discovery uses
+  [python-zeroconf](https://github.com/python-zeroconf/python-zeroconf).
 
 ## Quick start
 
@@ -194,6 +200,9 @@ container, publish the port on `127.0.0.1` / a private network, and put an authe
 (basic auth, OIDC, VPN) in front. Set `allowed_hosts` to the proxy's host name to block DNS rebinding.
 
 ## Docker
+
+Images are published to [GitHub Container Registry](https://github.com/f18m/esphome-log-collector/pkgs/container/esphome-log-collector).
+The `latest` tag tracks `main` and tagged releases; version-specific tags are also published.
 
 * `Dockerfile`: `python:3.12-slim-bookworm` pinned by digest, pinned dependencies, multi-stage,
   non-root user `collector` (uid 10001), `HEALTHCHECK`, `SIGTERM` for graceful shutdown.

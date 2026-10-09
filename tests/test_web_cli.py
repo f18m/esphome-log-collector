@@ -49,6 +49,7 @@ def test_status_page_and_api(web):
     base, _, _ = web
     status, body, headers = get(base + "/")
     assert status == 200 and "connected" in body and headers["Content-Security-Policy"].startswith("default-src 'none'")
+    assert "radial-gradient" in body and "name='viewport'" in body
     assert json.loads(get(base + "/api/status")[1])[0]["device"] == "a"
 
 
