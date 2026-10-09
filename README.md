@@ -5,7 +5,7 @@ devices. It reconnects after device/network outages, keeps logs across container
 investigate intermittent crashes and reboots after the fact (SQLite storage, retention, export tarballs,
 sanitized configuration snapshots, optional read-only web UI).
 
-* Pinned ESPHome version: **2026.6.2** (`requirements.txt`). This version supports the dynamic
+* Pinned ESPHome version: **2026.9.1** (`requirements.txt`). This version supports the dynamic
   include substitutions used by the interface-panel configurations. The `esphome logs` option
   mapping is verified against its help output and checked by a test.
 * No Home Assistant, Docker socket or systemd required. Explicit IP targets work without mDNS.
@@ -65,7 +65,7 @@ Note that the `esphome logs` CLI only accepts MQTT credentials as command-line a
 
 ### `esphome logs` options (backend `cli`)
 
-`esphome logs --help` in ESPHome 2026.6.2 offers exactly these options; all are configurable under
+`esphome logs --help` in ESPHome 2026.9.1 offers exactly these options; all are configurable under
 `logs:` (per device or in `defaults`, except `device` and `reset`, which are per device only):
 
 | YAML (`logs.`) | CLI argument | Notes |
@@ -97,7 +97,7 @@ session left open by a crash/kill is closed with reason `collector_crashed_or_ki
 
 ### Discovery (optional)
 
-`discovery.enabled: true` browses mDNS (`_esphomelib._tcp.local.`) with zeroconf. (ESPHome 2026.6.2's
+`discovery.enabled: true` browses mDNS (`_esphomelib._tcp.local.`) with zeroconf. (ESPHome 2026.9.1's
 `esphome discover` is not a reliable discovery mechanism, hence zeroconf directly.) Discovery must be
 restricted: `names`, `name_prefixes` and/or `exclude_names`, or an explicit `allow_all: true`.
 Discovered devices that match an explicit target by name, `esphome_name` or address are dropped
