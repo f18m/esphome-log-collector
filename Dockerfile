@@ -24,6 +24,9 @@ RUN groupadd --system --gid 10001 collector \
     && useradd --system --uid 10001 --gid collector --home-dir /home/collector --create-home --shell /usr/sbin/nologin collector \
     && mkdir -p /data /config \
     && chown collector:collector /data
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /opt/venv /opt/venv
 USER collector:collector
 WORKDIR /data

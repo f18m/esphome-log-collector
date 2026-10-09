@@ -208,7 +208,9 @@ Images are published to [GitHub Container Registry](https://github.com/f18m/esph
 The `latest` tag tracks `main` and tagged releases; version-specific tags are also published.
 
 * `Dockerfile`: `python:3.12-slim-bookworm` pinned by digest, pinned dependencies, multi-stage,
-  non-root user `collector` (uid 10001), `HEALTHCHECK`, `SIGTERM` for graceful shutdown.
+  includes `git` and CA certificates for ESPHome remote packages, non-root user `collector` (uid
+  10001), `HEALTHCHECK`, `SIGTERM` for graceful shutdown. Non-Docker installations using ESPHome
+  configurations with remote packages also need the `git` executable installed.
 * Mount the collector YAML and device YAMLs/`secrets.yaml` read-only (`:ro`) and `/data` writable
   (a named volume, or a bind mount owned by uid 10001). Logs of the collector go to stderr; firmware
   logs go to `/data`.
