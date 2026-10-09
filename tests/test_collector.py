@@ -70,9 +70,12 @@ def test_reconnects_with_new_session_and_records_gap(tmp_path, make_config):
 
 def test_cli_failure_includes_sanitized_diagnostic_output(tmp_path, make_config):
     f = device_file(tmp_path, "a", lines=[
+        "INFO Reading configuration",
         "Failed config",
         "  wifi_password: configured-secret-value",
+        *(f"  rendered_config_line_{index}: value" for index in range(30)),
         "  Error reading include: missing-file.yaml",
+        *(f"  trailing_config_line_{index}: value" for index in range(20)),
     ], **{"exit": 2})
     (tmp_path / "secrets.yaml").write_text("api_key: configured-secret-value\n")
     cfg = make_config([{"name": "a", "address": "10.0.0.1", "config_file": f}])
@@ -86,6 +89,7 @@ def test_cli_failure_includes_sanitized_diagnostic_output(tmp_path, make_config)
     status = db.execute("SELECT last_error FROM device_status WHERE device='a'").fetchone()[0]
     assert "configured-secret-value" not in logs + status
     assert "Failed config" in status and "missing-file.yaml" in status
+    assert "trailing_config_line_19" in status
     assert "[REDACTED]" in logs and "exited with code 2" in status
 
 

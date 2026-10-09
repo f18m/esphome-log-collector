@@ -99,6 +99,9 @@ Every session gets a UUID. Collector-generated events are stored alongside firmw
 (`event_type`): `session_start`, `connected`, `disconnected`, `retry_scheduled`, `gap` (time since the
 previous stored event, so outages and restarts are visible), `collector_error`, `session_end`. A
 session left open by a crash/kill is closed with reason `collector_crashed_or_killed` on next start.
+When `esphome logs` exits with an error, the collector error includes a bounded, redacted excerpt
+from the beginning and end of its output plus lines that look diagnostic, so config dumps do not
+hide the original failure reason.
 `connected` is recorded when the first firmware log line (or "Successfully connected") appears.
 
 ### Discovery (optional)
