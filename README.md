@@ -225,6 +225,9 @@ The `latest` tag tracks `main` and tagged releases; version-specific tags are al
 
 ## Development and tests
 
+Package builds get their version from Git tags (use `vX.Y.Z` for releases); commits after
+a tag get a PEP 440 development version. `0.1.0` is the fallback when SCM metadata is unavailable.
+
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt && pip install --no-deps -e .
