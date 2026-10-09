@@ -170,7 +170,24 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _page(self, title: str, template: str, status: int = 200, **values: str) -> None:
         content = _render(template, **values)
-        document = _render("base.html", title=html.escape(title), content=content)
+        path = urlparse(self.path).path
+        active_page = (
+            "status" if path == "/" else
+            "logs" if path == "/logs" else
+            "tail" if path == "/tail" else
+            "exports" if path == "/exports" or path.startswith("/exports/") else
+            ""
+        )
+        document_values = {
+            "title": html.escape(title),
+            "content": content,
+            "page_class": f"{active_page}-page" if active_page in {"logs", "tail"} else "",
+        }
+        for page in ("status", "logs", "tail", "exports"):
+            selected = page == active_page
+            document_values[f"{page}_class"] = "active" if selected else ""
+            document_values[f"{page}_current"] = 'aria-current="page"' if selected else ""
+        document = _render("base.html", **document_values)
         self._send(status, document.encode("utf-8"))
 
     def _json(self, payload, status: int = 200) -> None:
@@ -322,6 +339,23 @@ class _Handler(BaseHTTPRequestHandler):
             )
         return "".join(rendered)
 
+    def _tail_lines(self, rows) -> str:
+        rendered = []
+        for row in rows:
+            event_marker = "" if row["event_type"] == LOG else f"[{html.escape(row['event_type'])}]"
+            rendered.append(
+                _render(
+                    "tail_line.html",
+                    ts=html.escape(row["ts"]),
+                    device=html.escape(row["device"]),
+                    level=html.escape(row["level"] or ""),
+                    component=html.escape(row["component"] or ""),
+                    event_marker=event_marker,
+                    line=html.escape(strip_ansi(row["raw"])),
+                )
+            )
+        return "".join(rendered)
+
     def _status_page(self) -> None:
         with self._db() as conn:
             rows = conn.execute("SELECT * FROM device_status ORDER BY device").fetchall()
@@ -382,7 +416,7 @@ class _Handler(BaseHTTPRequestHandler):
         devices = self._options(self._devices(), p.get("device"))
         levels = self._options(list(LEVELS.values()), p.get("level"))
         types = self._options(list(EVENT_TYPES), p.get("type"))
-        body_rows = self._log_rows(reversed(rows))
+        body_rows = self._tail_lines(reversed(rows))
         stream_params = {k: v for k, v in p.items() if k in {"device", "level", "type", "q"} and v}
         stream_params["after"] = str(cursor)
         stream_url = "/api/tail?" + "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in stream_params.items())

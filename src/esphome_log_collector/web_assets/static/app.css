@@ -6,14 +6,19 @@
 }
 * { box-sizing: border-box; }
 body {
+  display: flex;
+  flex-direction: column;
   max-width: 1440px;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   margin: 0 auto;
   padding: clamp(1rem, 3vw, 2.5rem);
   background: radial-gradient(ellipse at top left, #fff 0, #f4f7fb 58%, #eaf0f8 100%);
-  min-height: 100vh;
 }
 nav {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   gap: .5rem;
   padding: .4rem;
@@ -38,12 +43,20 @@ nav a:hover, nav a:focus-visible {
   background: #fff;
   outline: none;
 }
-h1 {
-  margin: 1.5rem 0 1rem;
-  color: #172554;
-  font-size: clamp(1.7rem, 4vw, 2.4rem);
-  letter-spacing: -.04em;
+nav a.active {
+  color: #123ea8;
+  background: #fff;
+  box-shadow: 0 1px 3px #1e293b1a;
 }
+main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 1rem;
+}
+.logs-page, .tail-page { overflow: hidden; }
 form, ul {
   padding: 1rem;
   background: #fff;
@@ -98,6 +111,14 @@ td, th {
   text-align: left;
   vertical-align: top;
 }
+.log-table td {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .72rem;
+}
+.log-table th {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .68rem;
+}
 th {
   position: sticky;
   top: 0;
@@ -113,10 +134,33 @@ tr:hover td { background: #f7faff; }
 td.m {
   max-width: 48rem;
   color: #334155;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.log-controls { flex: none; }
+.log-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-radius: 1rem;
+}
+.log-table { margin: 0; }
+.tail-controls { flex: none; }
+.terminal {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: .75rem;
+  color: #d1fae5;
+  background: #090d0b;
+  border: 1px solid #26352c;
+  border-radius: .75rem;
+  box-shadow: inset 0 0 24px #0008;
+  font: .76rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.terminal-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.terminal-meta { color: #6ee7a8; }
+.terminal-message { color: #e5e7eb; }
 .ERROR, .CRITICAL {
   color: #b42318;
   font-weight: 750;
@@ -128,6 +172,6 @@ li { padding: .25rem 0; }
 p { line-height: 1.6; }
 @media (max-width: 760px) {
   body { padding: 1rem .75rem; }
-  table { display: block; overflow-x: auto; }
+  .log-table { min-width: 900px; }
   td.m { min-width: 20rem; }
 }

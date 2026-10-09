@@ -10,23 +10,20 @@ source.onerror = () => {
 };
 source.onmessage = (message) => {
   const event = JSON.parse(message.data);
-  const row = document.createElement("tr");
-  for (const value of [event.ts, event.device, event.level || "", event.component || ""]) {
-    const cell = document.createElement("td");
-    cell.textContent = value;
-    row.appendChild(cell);
-  }
-  const typeCell = document.createElement("td");
-  typeCell.textContent = event.event_type === "log" ? "" : "[" + event.event_type + "]";
-  row.appendChild(typeCell);
-  const lineCell = document.createElement("td");
-  lineCell.className = "m";
-  lineCell.textContent = event.clean;
-  row.appendChild(lineCell);
-  const stayAtBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 40;
-  tailRows.appendChild(row);
-  while (tailRows.rows.length > 500) tailRows.deleteRow(0);
-  if (stayAtBottom) window.scrollTo(0, document.body.scrollHeight);
+  const stayAtBottom = tailRows.scrollHeight - tailRows.scrollTop <= tailRows.clientHeight + 40;
+  const line = document.createElement("div");
+  line.className = "terminal-line";
+  const meta = document.createElement("span");
+  meta.className = "terminal-meta";
+  const eventType = event.event_type === "log" ? "" : "[" + event.event_type + "] ";
+  meta.textContent = `${event.ts} [${event.device}] [${event.level || ""}] [${event.component || ""}] ${eventType}`;
+  const messageText = document.createElement("span");
+  messageText.className = "terminal-message";
+  messageText.textContent = event.clean;
+  line.append(meta, messageText);
+  tailRows.appendChild(line);
+  while (tailRows.children.length > 500) tailRows.firstElementChild.remove();
+  if (stayAtBottom) tailRows.scrollTop = tailRows.scrollHeight;
 };
 
-window.scrollTo(0, document.body.scrollHeight);
+tailRows.scrollTop = tailRows.scrollHeight;

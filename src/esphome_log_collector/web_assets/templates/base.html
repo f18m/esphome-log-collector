@@ -7,8 +7,12 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-  <nav><a href="/">Status</a><a href="/logs">Logs</a><a href="/tail">Tail</a><a href="/exports">Exports</a></nav>
-  <h1>${title}</h1>
-  ${content}
+  <nav>
+    <a href="/" class="${status_class}" ${status_current}>Status</a>
+    <a href="/logs" class="${logs_class}" ${logs_current}>Logs</a>
+    <a href="/tail" class="${tail_class}" ${tail_current}>Tail</a>
+    <a href="/exports" class="${exports_class}" ${exports_current}>Exports</a>
+  </nav>
+  <main class="${page_class}">${content}</main>
 </body>
 </html>
