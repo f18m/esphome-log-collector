@@ -154,6 +154,16 @@ td.m {
   overflow-wrap: anywhere;
 }
 .log-controls { flex: none; }
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+.date-range label {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+}
 .font-controls {
   display: inline-flex;
   gap: .35rem;
@@ -187,6 +197,7 @@ td.m {
   font-size: var(--tail-font-size, .76rem);
   line-height: 1.45;
 }
+.logs-terminal { font-size: var(--log-font-size, .76rem); }
 .terminal-line { white-space: pre-wrap; overflow-wrap: anywhere; }
 .terminal-meta { color: #6ee7a8; }
 .terminal-message { color: #e5e7eb; }

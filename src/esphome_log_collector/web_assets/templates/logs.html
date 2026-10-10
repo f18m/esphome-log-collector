@@ -1,10 +1,12 @@
 <div class="log-controls">
   <form method="get" action="/logs">
     Device <select name="device"><option value="">all</option>${devices}</select>
-    Level <select name="level"><option value="">any</option>${levels}</select>
+    Log Level <select name="level"><option value="">any</option>${levels}</select>
     Type <select name="type"><option value="">any</option>${types}</select>
-    From <input name="start" value="${start}" placeholder="2025-01-31T12:00:00Z">
-    To <input name="end" value="${end}">
+    <div class="date-range">
+      <label>From (UTC, inclusive) <input type="datetime-local" name="start" step="1" value="${start}"></label>
+      <label>To (UTC, exclusive) <input type="datetime-local" name="end" step="1" value="${end}"></label>
+    </div>
     Text <input name="q" value="${query}">
     <button>Search</button>
     <span class="font-controls" role="group" aria-label="Log font size">
@@ -14,9 +16,4 @@
   </form>
   <p>${pager}</p>
 </div>
-<div class="log-table-scroll">
-  <table class="log-table">
-    <thead><tr><th>Time (UTC)</th><th>Device</th><th>Level</th><th>Component</th><th>Type</th><th>Line (ANSI removed)</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-</div>
+<div id="logs-rows" class="terminal logs-terminal">${rows}</div>

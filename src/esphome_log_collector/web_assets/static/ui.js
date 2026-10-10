@@ -35,7 +35,7 @@ for (const form of filterForms) {
 }
 
 const fontSettings = {
-  logs: { selector: ".log-table", property: "--log-font-size", min: 10, max: 24 },
+  logs: { selector: ".logs-terminal", property: "--log-font-size", min: 10, max: 24 },
   tail: { selector: "#tail-rows", property: "--tail-font-size", min: 10, max: 24 },
 };
 
