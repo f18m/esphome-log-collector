@@ -9,12 +9,20 @@
   <script src="/static/ui.js" defer></script>
 </head>
 <body>
-  <nav>
-    <a href="/" class="${status_class}" ${status_current}>Status</a>
-    <a href="/logs" class="${logs_class}" ${logs_current}>Logs</a>
-    <a href="/tail" class="${tail_class}" ${tail_current}>Live Tail</a>
-    <a href="/exports" class="${exports_class}" ${exports_current}>Exports</a>
-  </nav>
+  <header class="site-header">
+    <a class="project-icon" href="https://github.com/f18m/esphome-log-collector/" aria-label="Project homepage">
+      <img src="/static/favicon.svg" alt="" width="40" height="40">
+    </a>
+    <nav>
+      <a href="/" class="${status_class}" ${status_current}>Status</a>
+      <a href="/logs" class="${logs_class}" ${logs_current}>Logs</a>
+      <a href="/tail" class="${tail_class}" ${tail_current}>Live Tail</a>
+      <a href="/exports" class="${exports_class}" ${exports_current}>Exports</a>
+    </nav>
+  </header>
   <main class="${page_class}">${content}</main>
+  <footer class="site-footer">
+    <a href="https://github.com/f18m/esphome-log-collector/">Project homepage</a>
+  </footer>
 </body>
 </html>

@@ -54,6 +54,10 @@ def test_status_page_and_api(web):
     assert '<a href="/" class="active" aria-current="page">Status</a>' in body
     assert "<h1>" not in body
     assert '<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">' in body
+    assert 'class="project-icon" href="https://github.com/f18m/esphome-log-collector/"' in body
+    assert '<img src="/static/favicon.svg" alt="" width="40" height="40">' in body
+    assert '<footer class="site-footer">' in body
+    assert '<a href="https://github.com/f18m/esphome-log-collector/">Project homepage</a>' in body
     assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
     assert '<td class="address">1.1.1.1</td>' in body
     assert "<th>Log lines</th>" in body and "<td>31</td>" in body
@@ -68,6 +72,7 @@ def test_static_assets(web):
     status, css, headers = get(base + "/static/app.css")
     assert status == 200 and headers["Content-Type"].startswith("text/css")
     assert "radial-gradient" in css
+    assert ".site-footer" in css and "text-align: center" in css
     status, favicon, headers = get(base + "/static/favicon.svg")
     assert status == 200 and headers["Content-Type"].startswith("image/svg+xml")
     assert "<svg" in favicon and "viewBox=" in favicon

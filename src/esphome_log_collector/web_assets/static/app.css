@@ -16,6 +16,26 @@ body {
   padding: clamp(1rem, 3vw, 2.5rem);
   background: radial-gradient(ellipse at top left, #fff 0, #f4f7fb 58%, #eaf0f8 100%);
 }
+.site-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: .75rem;
+}
+.project-icon {
+  display: flex;
+  flex: none;
+  border-radius: .7rem;
+}
+.project-icon img {
+  display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+.project-icon:focus-visible {
+  outline: 3px solid #528bff;
+  outline-offset: 3px;
+}
 nav {
   display: flex;
   flex: none;
@@ -55,6 +75,12 @@ main {
   min-height: 0;
   overflow: auto;
   padding-top: 1rem;
+}
+.site-footer {
+  flex: none;
+  padding-top: .75rem;
+  text-align: center;
+  font-size: .85rem;
 }
 .logs-page, .tail-page { overflow: hidden; }
 form, ul {
@@ -221,6 +247,7 @@ p { line-height: 1.6; }
 .device-select-table input { min-height: auto; }
 @media (max-width: 760px) {
   body { padding: 1rem .75rem; }
+  .site-header { align-items: flex-start; }
   .log-table { min-width: 900px; }
   td.m { min-width: 20rem; }
 }
