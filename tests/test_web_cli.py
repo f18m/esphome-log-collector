@@ -93,7 +93,8 @@ def test_log_search_filters_and_pagination(web):
     assert '<a href="/logs" class="active" aria-current="page">Logs</a>' in page
     assert '<div id="logs-rows" class="terminal logs-terminal">' in page
     assert '<table' not in page
-    assert page.index('<form method="get" action="/logs">') < page.index('data-font-target="logs"') < page.index("</form>")
+    assert page.index("</form>") < page.index('class="control-toolbar"') < page.index('data-font-target="logs"')
+    assert '<div class="control-toolbar">\n    <p>page 1 ' in page
     assert 'data-font-target="logs"' in page and "Increase log font size" in page
     assert '<option value="">any</option>' in page
     assert '<option value="DEBUG">DEBUG or higher</option>' in page
@@ -101,6 +102,8 @@ def test_log_search_filters_and_pagination(web):
     assert '<label class="text-filter">Text <input name="q" value=""></label>' in page
     css = get(base + "/static/app.css")[1]
     assert ".logs-terminal { font-size: var(--log-font-size" in css
+    assert ".control-toolbar {" in css and "justify-content: space-between" in css
+    assert "min-width: 2rem;" in css and "min-height: 1.8rem;" in css
     assert ".text-filter {" in css and "white-space: nowrap" in css
     assert ".terminal {" in css and "overflow: auto" in css
     range_page = get(base + "/logs?start=2025-01-31T12%3A34%3A56Z&end=2025-02-01T01%3A02%3A03Z")[1]
@@ -142,7 +145,8 @@ def test_tail_page_and_live_stream(web):
     status, body, headers = get(base + "/tail?device=a")
     assert status == 200 and "<title>Live Tail</title>" in body and "/static/tail.js" in body
     assert '<a href="/tail" class="active" aria-current="page">Live Tail</a>' in body
-    assert body.index('<form method="get" action="/tail">') < body.index('data-font-target="tail"') < body.index("</form>")
+    assert body.index("</form>") < body.index('class="control-toolbar"') < body.index('data-font-target="tail"')
+    assert '<p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>' in body
     assert 'data-font-target="tail"' in body and "Increase Live Tail font size" in body
     assert 'Log Level <select name="level">' in body
     assert '<option value="INFO">INFO or higher</option>' in body

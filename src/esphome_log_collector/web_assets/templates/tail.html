@@ -5,12 +5,14 @@
     Type <select name="type"><option value="">any</option>${types}</select>
     Text <input name="q" value="${query}">
     <button>Live Tail</button>
+  </form>
+  <div class="control-toolbar">
+    <p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>
     <span class="font-controls" role="group" aria-label="Live Tail font size">
       <button type="button" data-font-target="tail" data-font-step="-1" aria-label="Decrease Live Tail font size" title="Decrease Live Tail font size">A−</button>
       <button type="button" data-font-target="tail" data-font-step="1" aria-label="Increase Live Tail font size" title="Increase Live Tail font size">A+</button>
     </span>
-  </form>
-  <p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>
+  </div>
 </div>
 <div id="tail-rows" class="terminal" data-stream-url="${stream_url}">${rows}</div>
 <script src="/static/tail.js" defer></script>

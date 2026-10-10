@@ -180,6 +180,14 @@ td.m {
   overflow-wrap: anywhere;
 }
 .log-controls { flex: none; }
+.control-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .55rem .25rem 0;
+}
+.control-toolbar p { margin: 0; }
 .date-range {
   display: flex;
   align-items: center;
@@ -198,11 +206,14 @@ td.m {
 }
 .font-controls {
   display: inline-flex;
-  gap: .35rem;
+  flex: none;
+  gap: .25rem;
 }
 .font-controls button {
-  min-width: 2.5rem;
-  padding-inline: .55rem;
+  min-width: 2rem;
+  min-height: 1.8rem;
+  padding: .2rem .4rem;
+  font-size: .8rem;
 }
 .log-table-scroll {
   flex: 1;
