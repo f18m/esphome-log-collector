@@ -54,6 +54,8 @@ def test_status_page_and_api(web):
     assert '<a href="/" class="active" aria-current="page">Status</a>' in body
     assert "<h1>" not in body
     assert '<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">' in body
+    assert "img-src 'self'" in headers["Content-Security-Policy"]
+    assert "img-src https:" not in headers["Content-Security-Policy"]
     assert 'class="project-icon" href="https://github.com/f18m/esphome-log-collector/"' in body
     assert '<img src="/static/favicon.svg" alt="" width="40" height="40">' in body
     assert '<footer class="site-footer">' in body
@@ -153,6 +155,7 @@ def test_tail_page_and_live_stream(web):
     response = urllib.request.urlopen(base + f"/api/tail?device=a&after={after}", timeout=5)
     try:
         assert response.headers["Content-Type"].startswith("text/event-stream")
+        assert "img-src" not in response.headers["Content-Security-Policy"]
         assert response.readline() == b": connected\n"
         response.readline()
 

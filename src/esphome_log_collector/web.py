@@ -172,7 +172,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; "
+            "default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; "
             "form-action 'self'; frame-ancestors 'none'",
         )
         for k, v in (extra or {}).items():
