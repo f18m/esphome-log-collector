@@ -96,8 +96,8 @@ capture:                       # `esphome config` snapshots (redacted before sto
   extra_key_patterns: ["^my_custom_secret$"]   # regexes (case-insensitive) matched against YAML keys
   extra_value_patterns: []                     # regexes replaced anywhere in the output
 
-web:                           # disabled by default; read-only; no authentication
-  enabled: false
+web:                           # enabled by default; read-only; no authentication
+  enabled: true
   bind: 127.0.0.1
   port: 8080
   page_size: 100

@@ -1,4 +1,4 @@
-# esphome-log-collector
+# <img src="src/esphome_log_collector/web_assets/static/favicon.svg" width="32" height="32" alt=""> esphome-log-collector
 
 [![GitHub Tag](https://img.shields.io/github/v/tag/f18m/esphome-log-collector)](https://github.com/f18m/esphome-log-collector/releases)
 [![PyPI - Version](https://img.shields.io/pypi/v/esphome-log-collector)](https://pypi.org/project/esphome-log-collector/)
@@ -30,6 +30,44 @@ docker compose run --rm esphome-log-collector check-config   # validate the YAML
 docker compose up -d
 docker compose logs -f                                # the collector's own operational log
 ```
+
+## Quick start (pip)
+
+Requires Python 3.12 or newer. Install the package from PyPI:
+
+```bash
+python -m pip install esphome-log-collector
+```
+
+Create `config.yaml` with your device address and a writable data directory:
+
+```yaml
+storage:
+  path: ./data
+
+devices:
+  - name: living-room
+    address: 192.168.1.42
+    backend: api
+
+web:
+  bind: 127.0.0.1
+  port: 8080
+```
+
+The web UI is enabled by default and binds to `127.0.0.1`, so it is available only
+from the local machine at [http://127.0.0.1:8080](http://127.0.0.1:8080). Validate
+the configuration and start collecting:
+
+```bash
+esphome-log-collector check-config -c config.yaml
+esphome-log-collector run -c config.yaml
+```
+
+Use `web.enabled: false` to disable the web UI. The UI has no built-in
+authentication; see [Web UI security](#web-ui-optional-read-only) before making it
+accessible beyond localhost. For the ESPHome CLI backend, install Git if your
+ESPHome configuration uses remote packages.
 
 Commands (`esphome-log-collector <command>`; the image entrypoint is this program):
 
@@ -200,10 +238,11 @@ files, unredacted configuration and temp files are never included.
 
 ## Web UI (optional, read-only)
 
-Disabled by default. `web.enabled: true`, `bind` (default **127.0.0.1**), `port`, `page_size`,
-`allowed_hosts`. Pages: status (`/`), search (`/logs`: device, time range, level, event type, text;
-paginated), live log tail (`/tail`: device, level, event type and text filters), exports (`/exports`:
-create + download). The tail streams newly stored events to the browser and reconnects automatically.
+Enabled by default. `web.enabled: false` disables it; `bind` (default **127.0.0.1**), `port`,
+`page_size`, `allowed_hosts`. Pages: status (`/`), terminal-style search (`/logs`: device, time range, minimum log
+level, event type, text; paginated), live log tail (`/tail`: device, minimum log level, event type and
+text filters), exports (`/exports`: create + download). The tail streams newly stored events to the
+browser and reconnects automatically.
 JSON: `/api/status`, `/api/logs`; Server-Sent Events: `/api/tail` (used by `/tail`). Standard library
 only; no device-control operations; the only write is "create export" (CSRF-protected POST).
 

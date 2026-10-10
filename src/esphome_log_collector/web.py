@@ -43,9 +43,11 @@ STATE_INDICATORS = {
 }
 STATIC_ASSETS = {
     "/static/app.css": ("app.css", "text/css; charset=utf-8"),
+    "/static/favicon.svg": ("favicon.svg", "image/svg+xml; charset=utf-8"),
     "/static/tail.js": ("tail.js", "text/javascript; charset=utf-8"),
     "/static/ui.js": ("ui.js", "text/javascript; charset=utf-8"),
 }
+LOG_LEVEL_FILTERS = (*LEVELS.values(), "CRITICAL")
 
 
 @lru_cache(maxsize=None)
@@ -81,10 +83,12 @@ def _log_filters(params: dict[str, str]) -> tuple[list[str], list[str]]:
     except ValueError as err:
         raise BadRequest(str(err)) from err
     if params.get("level"):
-        if params["level"] not in {*LEVELS.values(), "CRITICAL"}:
+        if params["level"] not in LOG_LEVEL_FILTERS:
             raise BadRequest(f"unknown level {params['level']!r}")
-        where.append("level = ?")
-        args.append(params["level"])
+        threshold = LOG_LEVEL_FILTERS.index(params["level"])
+        matching_levels = LOG_LEVEL_FILTERS[threshold:]
+        where.append(f"level IN ({', '.join('?' for _ in matching_levels)})")
+        args.extend(matching_levels)
     if params.get("type"):
         if params["type"] not in EVENT_TYPES:
             raise BadRequest(f"unknown event type {params['type']!r}")
@@ -168,7 +172,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; "
+            "default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; "
             "form-action 'self'; frame-ancestors 'none'",
         )
         for k, v in (extra or {}).items():
@@ -313,39 +317,16 @@ class _Handler(BaseHTTPRequestHandler):
         with self._db() as conn:
             return [r[0] for r in conn.execute("SELECT device FROM device_status ORDER BY device")]
 
-    def _options(self, values, selected: str | None) -> str:
+    def _options(self, values, selected: str | None, label_suffix: str = "") -> str:
         return "".join(
             _render(
                 "log_options.html",
                 value=html.escape(value, quote=True),
-                label=html.escape(value),
+                label=html.escape(value + label_suffix),
                 selected=" selected" if value == selected else "",
             )
             for value in values
         )
-
-    def _log_rows(self, rows) -> str:
-        rendered = []
-        for row in rows:
-            event_marker = ""
-            if row["event_type"] != LOG:
-                event_marker = _render(
-                    "event_marker.html",
-                    event_type=html.escape(row["event_type"]),
-                ) + " "
-            rendered.append(
-                _render(
-                    "log_row.html",
-                    ts=html.escape(row["ts"]),
-                    device=html.escape(row["device"]),
-                    level_class=html.escape(row["level"] or "", quote=True),
-                    level=html.escape(row["level"] or ""),
-                    component=html.escape(row["component"] or ""),
-                    event_marker=event_marker,
-                    line=html.escape(strip_ansi(row["raw"])),
-                )
-            )
-        return "".join(rendered)
 
     def _tail_lines(self, rows) -> str:
         rendered = []
@@ -400,9 +381,9 @@ class _Handler(BaseHTTPRequestHandler):
     def _logs_page(self, p: dict[str, str]) -> None:
         rows, more, page = self._fetch_logs(p)
         devices = self._options(self._devices(), p.get("device"))
-        levels = self._options(list(LEVELS.values()), p.get("level"))
+        levels = self._options(LOG_LEVEL_FILTERS, p.get("level"), " or higher")
         types = self._options(list(EVENT_TYPES), p.get("type"))
-        body_rows = self._log_rows(rows)
+        body_rows = self._tail_lines(rows)
         base = {k: v for k, v in p.items() if k != "page" and v}
 
         def link(n: int, label: str) -> str:
@@ -420,8 +401,8 @@ class _Handler(BaseHTTPRequestHandler):
             devices=devices,
             levels=levels,
             types=types,
-            start=html.escape(p.get("start", ""), quote=True),
-            end=html.escape(p.get("end", ""), quote=True),
+            start=html.escape(parse_ts(p["start"])[:19] if p.get("start") else "", quote=True),
+            end=html.escape(parse_ts(p["end"])[:19] if p.get("end") else "", quote=True),
             query=html.escape(p.get("q", ""), quote=True),
             pager=pager,
             rows=body_rows,
@@ -436,7 +417,7 @@ class _Handler(BaseHTTPRequestHandler):
             conn.commit()
 
         devices = self._options(self._devices(), p.get("device"))
-        levels = self._options(list(LEVELS.values()), p.get("level"))
+        levels = self._options(LOG_LEVEL_FILTERS, p.get("level"), " or higher")
         types = self._options(list(EVENT_TYPES), p.get("type"))
         body_rows = self._tail_lines(reversed(rows))
         stream_params = {k: v for k, v in p.items() if k in {"device", "level", "type", "q"} and v}

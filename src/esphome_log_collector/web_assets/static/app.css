@@ -16,6 +16,33 @@ body {
   padding: clamp(1rem, 3vw, 2.5rem);
   background: radial-gradient(ellipse at top left, #fff 0, #f4f7fb 58%, #eaf0f8 100%);
 }
+.site-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: .75rem;
+}
+.project-icon {
+  display: flex;
+  flex: none;
+  border-radius: .7rem;
+}
+.project-icon img {
+  display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+.project-icon:focus-visible {
+  outline: 3px solid #528bff;
+  outline-offset: 3px;
+}
+.site-title {
+  margin-left: auto;
+  color: #334155;
+  font-size: 1.05rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
 nav {
   display: flex;
   flex: none;
@@ -55,6 +82,12 @@ main {
   min-height: 0;
   overflow: auto;
   padding-top: 1rem;
+}
+.site-footer {
+  flex: none;
+  padding-top: .75rem;
+  text-align: center;
+  font-size: .85rem;
 }
 .logs-page, .tail-page { overflow: hidden; }
 form, ul {
@@ -154,13 +187,40 @@ td.m {
   overflow-wrap: anywhere;
 }
 .log-controls { flex: none; }
+.control-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .55rem .25rem .45rem;
+}
+.control-toolbar p { margin: 0; }
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+.date-range label {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+}
+.text-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  white-space: nowrap;
+}
 .font-controls {
   display: inline-flex;
-  gap: .35rem;
+  flex: none;
+  gap: .25rem;
 }
 .font-controls button {
-  min-width: 2.5rem;
-  padding-inline: .55rem;
+  min-width: 2rem;
+  min-height: 1.8rem;
+  padding: .2rem .4rem;
+  font-size: .8rem;
 }
 .log-table-scroll {
   flex: 1;
@@ -187,6 +247,7 @@ td.m {
   font-size: var(--tail-font-size, .76rem);
   line-height: 1.45;
 }
+.logs-terminal { font-size: var(--log-font-size, .76rem); }
 .terminal-line { white-space: pre-wrap; overflow-wrap: anywhere; }
 .terminal-meta { color: #6ee7a8; }
 .terminal-message { color: #e5e7eb; }
@@ -210,6 +271,8 @@ p { line-height: 1.6; }
 .device-select-table input { min-height: auto; }
 @media (max-width: 760px) {
   body { padding: 1rem .75rem; }
+  .site-header { align-items: center; flex-wrap: wrap; }
+  .site-title { margin-left: auto; }
   .log-table { min-width: 900px; }
   td.m { min-width: 20rem; }
 }

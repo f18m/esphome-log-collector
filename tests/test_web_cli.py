@@ -40,9 +40,11 @@ def get(url, **kw):
         return err.code, err.read().decode("utf-8", "replace"), err.headers
 
 
-def test_disabled_and_localhost_by_default(make_config):
+def test_web_enabled_and_localhost_by_default(make_config):
     cfg = make_config([{"name": "a", "address": "1.1.1.1"}])
-    assert cfg.web.enabled is False and cfg.web.bind == "127.0.0.1"
+    assert cfg.web.enabled is True and cfg.web.bind == "127.0.0.1"
+    disabled = make_config([{"name": "a", "address": "1.1.1.1"}], web={"enabled": False})
+    assert disabled.web.enabled is False
 
 
 def test_status_page_and_api(web):
@@ -53,6 +55,14 @@ def test_status_page_and_api(web):
     assert body.count('<script src="/static/ui.js" defer></script>') == 1
     assert '<a href="/" class="active" aria-current="page">Status</a>' in body
     assert "<h1>" not in body
+    assert '<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">' in body
+    assert "img-src 'self'" in headers["Content-Security-Policy"]
+    assert "img-src https:" not in headers["Content-Security-Policy"]
+    assert 'class="project-icon" href="https://github.com/f18m/esphome-log-collector/"' in body
+    assert '<img src="/static/favicon.svg" alt="" width="40" height="40">' in body
+    assert '<span class="site-title">ESPHome Log Collector</span>' in body
+    assert '<footer class="site-footer">' in body
+    assert '<a href="https://github.com/f18m/esphome-log-collector/">Project homepage</a>' in body
     assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
     assert '<td class="address">1.1.1.1</td>' in body
     assert "<th>Log lines</th>" in body and "<td>31</td>" in body
@@ -67,6 +77,10 @@ def test_static_assets(web):
     status, css, headers = get(base + "/static/app.css")
     assert status == 200 and headers["Content-Type"].startswith("text/css")
     assert "radial-gradient" in css
+    assert ".site-footer" in css and "text-align: center" in css
+    status, favicon, headers = get(base + "/static/favicon.svg")
+    assert status == 200 and headers["Content-Type"].startswith("image/svg+xml")
+    assert "<svg" in favicon and "viewBox=" in favicon
     status, script, headers = get(base + "/static/tail.js")
     assert status == 200 and headers["Content-Type"].startswith("text/javascript")
     assert "new EventSource" in script
@@ -80,13 +94,25 @@ def test_log_search_filters_and_pagination(web):
     base, _, _ = web
     page = get(base + "/logs")[1]
     assert '<a href="/logs" class="active" aria-current="page">Logs</a>' in page
-    assert '<div class="log-table-scroll">' in page
-    assert '<table class="log-table">' in page
-    assert page.index('<form method="get" action="/logs">') < page.index('data-font-target="logs"') < page.index("</form>")
+    assert '<div id="logs-rows" class="terminal logs-terminal">' in page
+    assert '<table' not in page
+    assert page.index("</form>") < page.index('class="control-toolbar"') < page.index('data-font-target="logs"')
+    assert '<div class="control-toolbar">\n    <p>page 1 ' in page
     assert 'data-font-target="logs"' in page and "Increase log font size" in page
+    assert '<option value="">any</option>' in page
+    assert '<option value="DEBUG">DEBUG or higher</option>' in page
+    assert 'Log Level <select name="level">' in page
+    assert '<label class="text-filter">Text <input name="q" value=""></label>' in page
     css = get(base + "/static/app.css")[1]
-    assert ".log-table td" in css and "font-family: ui-monospace" in css
-    assert ".log-table-scroll" in css and "overflow: auto" in css
+    assert ".logs-terminal { font-size: var(--log-font-size" in css
+    assert ".control-toolbar {" in css and "justify-content: space-between" in css
+    assert "min-width: 2rem;" in css and "min-height: 1.8rem;" in css
+    assert ".text-filter {" in css and "white-space: nowrap" in css
+    assert ".terminal {" in css and "overflow: auto" in css
+    range_page = get(base + "/logs?start=2025-01-31T12%3A34%3A56Z&end=2025-02-01T01%3A02%3A03Z")[1]
+    assert '<input type="datetime-local" name="start" step="1" value="2025-01-31T12:34:56">' in range_page
+    assert '<input type="datetime-local" name="end" step="1" value="2025-02-01T01:02:03">' in range_page
+    assert range_page.index('name="start"') < range_page.index('name="end"') < range_page.index('name="q"')
     data = json.loads(get(base + "/api/logs?device=a&q=alpha&page_size=10")[1])
     assert len(data["events"]) == 10 and data["has_next"] is True
     page3 = json.loads(get(base + "/api/logs?device=a&q=alpha&page_size=10&page=3")[1])
@@ -95,6 +121,22 @@ def test_log_search_filters_and_pagination(web):
     assert only_b and all(e["device"] == "b" for e in only_b)
     errs = json.loads(get(base + "/api/logs?level=ERROR")[1])["events"]
     assert len(errs) == 1 and "\x1b" not in errs[0]["clean"] and "\x1b" in errs[0]["raw"]
+    levels = (
+        "[00:00:00][V][test:1]: very verbose",
+        "[00:00:00][D][test:1]: debug",
+        "[00:00:00][C][test:1]: config",
+        "[00:00:00][I][test:1]: info",
+        "[00:00:00][W][test:1]: warning",
+        "[00:00:00][E][test:1]: error",
+        "CRITICAL critical",
+    )
+    storage = st.Storage(web[2].db_path)
+    sid, _ = storage.start_session("a", None)
+    for line in levels:
+        storage.add_log("a", None, sid, line)
+    storage.close()
+    threshold_events = json.loads(get(base + "/api/logs?level=INFO")[1])["events"]
+    assert {event["level"] for event in threshold_events} == {"INFO", "WARNING", "ERROR", "CRITICAL"}
     assert len(json.loads(get(base + "/api/logs?q=100%25_done")[1])["events"]) == 1  # LIKE wildcards are literal
     assert json.loads(get(base + "/api/logs?q=alpha&start=2999-01-01T00:00:00Z")[1])["events"] == []
     assert get(base + "/api/logs?start=garbage")[0] == 400
@@ -106,8 +148,11 @@ def test_tail_page_and_live_stream(web):
     status, body, headers = get(base + "/tail?device=a")
     assert status == 200 and "<title>Live Tail</title>" in body and "/static/tail.js" in body
     assert '<a href="/tail" class="active" aria-current="page">Live Tail</a>' in body
-    assert body.index('<form method="get" action="/tail">') < body.index('data-font-target="tail"') < body.index("</form>")
+    assert body.index("</form>") < body.index('class="control-toolbar"') < body.index('data-font-target="tail"')
+    assert '<p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>' in body
     assert 'data-font-target="tail"' in body and "Increase Live Tail font size" in body
+    assert 'Log Level <select name="level">' in body
+    assert '<option value="INFO">INFO or higher</option>' in body
     assert 'class="terminal"' in body and "<table" not in body
     assert "[E][x:1]: failure 100%_done" in body
     assert "script-src 'self'" in headers["Content-Security-Policy"]
@@ -119,6 +164,7 @@ def test_tail_page_and_live_stream(web):
     response = urllib.request.urlopen(base + f"/api/tail?device=a&after={after}", timeout=5)
     try:
         assert response.headers["Content-Type"].startswith("text/event-stream")
+        assert "img-src" not in response.headers["Content-Security-Policy"]
         assert response.readline() == b": connected\n"
         response.readline()
 
