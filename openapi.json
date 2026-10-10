@@ -1,0 +1,715 @@
+{
+  "components": {
+    "schemas": {
+      "DeviceStatus": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "backend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend"
+          },
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_error_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error At"
+          },
+          "last_line_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Line At"
+          },
+          "next_retry_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Retry At"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "state": {
+            "description": "Collector state, e.g. connected, connecting, backoff, stopped.",
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device",
+          "state",
+          "updated_at",
+          "attempts"
+        ],
+        "title": "DeviceStatus",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "JSON error body returned by every /api/* endpoint.",
+        "properties": {
+          "error": {
+            "description": "Human-readable error message.",
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "LogEvent": {
+        "properties": {
+          "clean": {
+            "description": "`raw` with ANSI escape sequences removed.",
+            "title": "Clean",
+            "type": "string"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "'log' or a collector event type.",
+            "examples": [
+              "log",
+              "session_start",
+              "session_end",
+              "connected",
+              "disconnected",
+              "retry_scheduled",
+              "gap",
+              "collector_error"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "description": "Monotonic event id; also used as the SSE event id.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "raw": {
+            "description": "Original line, possibly containing ANSI escapes.",
+            "title": "Raw",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "description": "UTC timestamp of the event.",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ts",
+          "device",
+          "session_id",
+          "event_type",
+          "raw",
+          "clean"
+        ],
+        "title": "LogEvent",
+        "type": "object"
+      },
+      "LogPage": {
+        "properties": {
+          "events": {
+            "description": "Events, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/LogEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "has_next": {
+            "description": "True when an older page exists.",
+            "title": "Has Next",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "events",
+          "has_next"
+        ],
+        "title": "LogPage",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Read-only HTTP API of the web UI. There is no authentication: bind to localhost or put an authenticated reverse proxy in front. The HTML pages, `POST /export` (CSRF-protected) and `GET /exports/{name}` downloads belong to the browser UI and are not part of this contract.",
+    "title": "ESPHome Log Collector",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/logs": {
+      "get": {
+        "operationId": "api_logs_api_logs_get",
+        "parameters": [
+          {
+            "description": "Only events of this device.",
+            "in": "query",
+            "name": "device",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only events of this device.",
+              "title": "Device"
+            }
+          },
+          {
+            "description": "Inclusive start (ISO-8601, UTC if no zone).",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive start (ISO-8601, UTC if no zone).",
+              "title": "Start"
+            }
+          },
+          {
+            "description": "Exclusive end (ISO-8601, UTC if no zone).",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive end (ISO-8601, UTC if no zone).",
+              "title": "End"
+            }
+          },
+          {
+            "description": "Minimum log level.",
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum log level.",
+              "enum": [
+                "VERY_VERBOSE",
+                "DEBUG",
+                "CONFIG",
+                "INFO",
+                "WARNING",
+                "ERROR",
+                "CRITICAL"
+              ],
+              "title": "Level"
+            }
+          },
+          {
+            "description": "Only this event type.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this event type.",
+              "enum": [
+                "log",
+                "session_start",
+                "session_end",
+                "connected",
+                "disconnected",
+                "retry_scheduled",
+                "gap",
+                "collector_error"
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "description": "Case-insensitive substring match on the raw line (LIKE wildcards are literal).",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Case-insensitive substring match on the raw line (LIKE wildcards are literal).",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "1-based page number (values below 1 are treated as 1).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number (values below 1 are treated as 1).",
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Events per page, clamped to 1..500; default is web.page_size.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Events per page, clamped to 1..500; default is web.page_size.",
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid parameter."
+          },
+          "403": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Host header not allowed (plain text body)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The collector database could not be read."
+          }
+        },
+        "summary": "Search stored events (newest first, paginated)",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/status": {
+      "get": {
+        "operationId": "api_status_api_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceStatus"
+                  },
+                  "title": "Response Api Status Api Status Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Host header not allowed (plain text body)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "The collector database could not be read."
+          }
+        },
+        "summary": "Collector status of every known device",
+        "tags": [
+          "api"
+        ]
+      }
+    },
+    "/api/tail": {
+      "get": {
+        "operationId": "api_tail_api_tail_get",
+        "parameters": [
+          {
+            "description": "Only events of this device.",
+            "in": "query",
+            "name": "device",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only events of this device.",
+              "title": "Device"
+            }
+          },
+          {
+            "description": "Inclusive start (ISO-8601, UTC if no zone).",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive start (ISO-8601, UTC if no zone).",
+              "title": "Start"
+            }
+          },
+          {
+            "description": "Exclusive end (ISO-8601, UTC if no zone).",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive end (ISO-8601, UTC if no zone).",
+              "title": "End"
+            }
+          },
+          {
+            "description": "Minimum log level.",
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum log level.",
+              "enum": [
+                "VERY_VERBOSE",
+                "DEBUG",
+                "CONFIG",
+                "INFO",
+                "WARNING",
+                "ERROR",
+                "CRITICAL"
+              ],
+              "title": "Level"
+            }
+          },
+          {
+            "description": "Only this event type.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this event type.",
+              "enum": [
+                "log",
+                "session_start",
+                "session_end",
+                "connected",
+                "disconnected",
+                "retry_scheduled",
+                "gap",
+                "collector_error"
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "description": "Case-insensitive substring match on the raw line (LIKE wildcards are literal).",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Case-insensitive substring match on the raw line (LIKE wildcards are literal).",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Only stream events with an id greater than this (non-negative).",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Only stream events with an id greater than this (non-negative).",
+              "title": "After",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Set by EventSource on reconnect; overrides `after`.",
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Set by EventSource on reconnect; overrides `after`.",
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Server-Sent Events stream (`text/event-stream`). The stream starts with the comment `: connected`; a `: keepalive` comment is sent every 15 seconds when idle. Each new event is sent as `id: <event id>\\ndata: <LogEvent JSON>\\n\\n`, in ascending id order. Resume with the `after` parameter or the `Last-Event-ID` header (the header wins), as EventSource does on reconnect."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid parameter."
+          },
+          "403": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Host header not allowed (plain text body)."
+          }
+        },
+        "summary": "Live tail as Server-Sent Events",
+        "tags": [
+          "api"
+        ]
+      }
+    }
+  }
+}
