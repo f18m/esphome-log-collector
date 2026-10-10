@@ -98,8 +98,10 @@ def test_log_search_filters_and_pagination(web):
     assert '<option value="">any</option>' in page
     assert '<option value="DEBUG">DEBUG or higher</option>' in page
     assert 'Log Level <select name="level">' in page
+    assert '<label class="text-filter">Text <input name="q" value=""></label>' in page
     css = get(base + "/static/app.css")[1]
     assert ".logs-terminal { font-size: var(--log-font-size" in css
+    assert ".text-filter {" in css and "white-space: nowrap" in css
     assert ".terminal {" in css and "overflow: auto" in css
     range_page = get(base + "/logs?start=2025-01-31T12%3A34%3A56Z&end=2025-02-01T01%3A02%3A03Z")[1]
     assert '<input type="datetime-local" name="start" step="1" value="2025-01-31T12:34:56">' in range_page

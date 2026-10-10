@@ -190,6 +190,12 @@ td.m {
   align-items: center;
   gap: .45rem;
 }
+.text-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  white-space: nowrap;
+}
 .font-controls {
   display: inline-flex;
   gap: .35rem;
