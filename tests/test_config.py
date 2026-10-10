@@ -38,7 +38,7 @@ def test_defaults_and_overrides(tmp_path):
     assert a.idle_timeout == 30 and b.idle_timeout == 0
     assert a.logs.client_id == "shared"
     assert a.logs.reset is False  # never enabled by default
-    assert c.web.enabled is False and c.web.bind == "127.0.0.1"
+    assert c.web.enabled is True and c.web.bind == "127.0.0.1"
     assert c.discovery.enabled is False
 
 
@@ -170,4 +170,4 @@ def test_example_configuration_is_valid(tmp_path, monkeypatch):
     porch = c.devices[2]
     assert porch.backend == "api" and porch.logs.mqtt_password is None  # defaults for cli don't leak into api
     assert c.devices[3].logs.reset is True and c.devices[0].logs.reset is False
-    assert yaml.safe_load(text)["web"]["enabled"] is False
+    assert yaml.safe_load(text)["web"]["enabled"] is True

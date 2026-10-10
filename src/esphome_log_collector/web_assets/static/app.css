@@ -36,6 +36,13 @@ body {
   outline: 3px solid #528bff;
   outline-offset: 3px;
 }
+.site-title {
+  margin-left: auto;
+  color: #334155;
+  font-size: 1.05rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
 nav {
   display: flex;
   flex: none;
@@ -185,7 +192,7 @@ td.m {
   align-items: center;
   justify-content: space-between;
   gap: .75rem;
-  padding: .55rem .25rem 0;
+  padding: .55rem .25rem .45rem;
 }
 .control-toolbar p { margin: 0; }
 .date-range {
@@ -264,7 +271,8 @@ p { line-height: 1.6; }
 .device-select-table input { min-height: auto; }
 @media (max-width: 760px) {
   body { padding: 1rem .75rem; }
-  .site-header { align-items: flex-start; }
+  .site-header { align-items: center; flex-wrap: wrap; }
+  .site-title { margin-left: auto; }
   .log-table { min-width: 900px; }
   td.m { min-width: 20rem; }
 }

@@ -595,7 +595,7 @@ def parse_config(raw: Any) -> Config:
 
     wb = ctx.mapping("web", top.get("web"), {"enabled", "bind", "port", "page_size", "allowed_hosts"})
     web = WebConfig(
-        enabled=bool(ctx.boolean("web", wb, "enabled", False)),
+        enabled=bool(ctx.boolean("web", wb, "enabled", True)),
         bind=ctx.string("web", wb, "bind", "127.0.0.1"),
         port=ctx.number("web", wb, "port", 8080, 1, 65535, integer=True),
         page_size=ctx.number("web", wb, "page_size", 100, 1, 500, integer=True),

@@ -31,6 +31,44 @@ docker compose up -d
 docker compose logs -f                                # the collector's own operational log
 ```
 
+## Quick start (pip)
+
+Requires Python 3.12 or newer. Install the package from PyPI:
+
+```bash
+python -m pip install esphome-log-collector
+```
+
+Create `config.yaml` with your device address and a writable data directory:
+
+```yaml
+storage:
+  path: ./data
+
+devices:
+  - name: living-room
+    address: 192.168.1.42
+    backend: api
+
+web:
+  bind: 127.0.0.1
+  port: 8080
+```
+
+The web UI is enabled by default and binds to `127.0.0.1`, so it is available only
+from the local machine at [http://127.0.0.1:8080](http://127.0.0.1:8080). Validate
+the configuration and start collecting:
+
+```bash
+esphome-log-collector check-config -c config.yaml
+esphome-log-collector run -c config.yaml
+```
+
+Use `web.enabled: false` to disable the web UI. The UI has no built-in
+authentication; see [Web UI security](#web-ui-optional-read-only) before making it
+accessible beyond localhost. For the ESPHome CLI backend, install Git if your
+ESPHome configuration uses remote packages.
+
 Commands (`esphome-log-collector <command>`; the image entrypoint is this program):
 
 | Command | Purpose |
@@ -200,8 +238,8 @@ files, unredacted configuration and temp files are never included.
 
 ## Web UI (optional, read-only)
 
-Disabled by default. `web.enabled: true`, `bind` (default **127.0.0.1**), `port`, `page_size`,
-`allowed_hosts`. Pages: status (`/`), terminal-style search (`/logs`: device, time range, minimum log
+Enabled by default. `web.enabled: false` disables it; `bind` (default **127.0.0.1**), `port`,
+`page_size`, `allowed_hosts`. Pages: status (`/`), terminal-style search (`/logs`: device, time range, minimum log
 level, event type, text; paginated), live log tail (`/tail`: device, minimum log level, event type and
 text filters), exports (`/exports`: create + download). The tail streams newly stored events to the
 browser and reconnects automatically.

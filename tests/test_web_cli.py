@@ -40,9 +40,11 @@ def get(url, **kw):
         return err.code, err.read().decode("utf-8", "replace"), err.headers
 
 
-def test_disabled_and_localhost_by_default(make_config):
+def test_web_enabled_and_localhost_by_default(make_config):
     cfg = make_config([{"name": "a", "address": "1.1.1.1"}])
-    assert cfg.web.enabled is False and cfg.web.bind == "127.0.0.1"
+    assert cfg.web.enabled is True and cfg.web.bind == "127.0.0.1"
+    disabled = make_config([{"name": "a", "address": "1.1.1.1"}], web={"enabled": False})
+    assert disabled.web.enabled is False
 
 
 def test_status_page_and_api(web):
@@ -58,6 +60,7 @@ def test_status_page_and_api(web):
     assert "img-src https:" not in headers["Content-Security-Policy"]
     assert 'class="project-icon" href="https://github.com/f18m/esphome-log-collector/"' in body
     assert '<img src="/static/favicon.svg" alt="" width="40" height="40">' in body
+    assert '<span class="site-title">ESPHome Log Collector</span>' in body
     assert '<footer class="site-footer">' in body
     assert '<a href="https://github.com/f18m/esphome-log-collector/">Project homepage</a>' in body
     assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
