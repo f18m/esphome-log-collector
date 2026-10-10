@@ -1,4 +1,4 @@
-# esphome-log-collector
+# <img src="src/esphome_log_collector/web_assets/static/favicon.svg" width="32" height="32" alt=""> esphome-log-collector
 
 [![GitHub Tag](https://img.shields.io/github/v/tag/f18m/esphome-log-collector)](https://github.com/f18m/esphome-log-collector/releases)
 [![PyPI - Version](https://img.shields.io/pypi/v/esphome-log-collector)](https://pypi.org/project/esphome-log-collector/)
