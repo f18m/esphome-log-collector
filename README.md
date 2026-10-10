@@ -18,9 +18,9 @@ with sanitized configuration snapshots and an optional web UI to browse the logs
   [aioesphomeapi](https://github.com/esphome/aioesphomeapi); optional mDNS discovery uses
   [python-zeroconf](https://github.com/python-zeroconf/python-zeroconf).
 
-<img title="log-browser" alt="log-browser" src="docs/screencast1-v0.2.0.gif">
+<img title="log-browser" alt="log-browser" src="docs/screencast2-v0.2.4.gif">
 
-## Quick start
+## Quick start (docker)
 
 ```bash
 cp examples/config.example.yaml config.yaml          # edit: devices, secrets, retention
@@ -37,37 +37,10 @@ Requires Python 3.12 or newer. Install the package from PyPI:
 
 ```bash
 python -m pip install esphome-log-collector
-```
-
-Create `config.yaml` with your device address and a writable data directory:
-
-```yaml
-storage:
-  path: ./data
-
-devices:
-  - name: living-room
-    address: 192.168.1.42
-    backend: api
-
-web:
-  bind: 127.0.0.1
-  port: 8080
-```
-
-The web UI is enabled by default and binds to `127.0.0.1`, so it is available only
-from the local machine at [http://127.0.0.1:8080](http://127.0.0.1:8080). Validate
-the configuration and start collecting:
-
-```bash
+cp examples/config.example.yaml config.yaml          # edit: devices, secrets, retention
 esphome-log-collector check-config -c config.yaml
 esphome-log-collector run -c config.yaml
 ```
-
-Use `web.enabled: false` to disable the web UI. The UI has no built-in
-authentication; see [Web UI security](#web-ui-optional-read-only) before making it
-accessible beyond localhost. For the ESPHome CLI backend, install Git if your
-ESPHome configuration uses remote packages.
 
 Commands (`esphome-log-collector <command>`; the image entrypoint is this program):
 
