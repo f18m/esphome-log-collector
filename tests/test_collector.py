@@ -49,6 +49,7 @@ def test_logs_persisted_with_raw_and_session_events(tmp_path, make_config):
     assert [r[1] for r in rows if r[0] == "log"] == ["[00:00:01]\x1b[0;32m[I][app:1]: hello\x1b[0m", "free text"]
     assert len({r[3] for r in rows}) == 1 and rows[0][4] == "10.0.0.1"
     assert types[-1] == "disconnected"  # graceful shutdown recorded
+    assert db.execute("SELECT attempts FROM device_status WHERE device='a'").fetchone()[0] == 1
     assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     assert db.execute("SELECT end_reason FROM sessions").fetchone()[0] == "collector shutting down"
     argv = json.loads(open(f + ".argv").read().splitlines()[0])
@@ -66,6 +67,9 @@ def test_reconnects_with_new_session_and_records_gap(tmp_path, make_config):
     assert db.execute("SELECT COUNT(DISTINCT session_id) FROM sessions").fetchone()[0] >= 3
     status = db.execute("SELECT state, last_error FROM device_status").fetchone()
     assert status[0] == "stopped" and "exited with code 1" in status[1]
+    assert db.execute("SELECT attempts FROM device_status WHERE device='a'").fetchone()[0] == db.execute(
+        "SELECT COUNT(*) FROM sessions WHERE device='a'"
+    ).fetchone()[0]
 
 
 def test_cli_failure_includes_sanitized_diagnostic_output(tmp_path, make_config):

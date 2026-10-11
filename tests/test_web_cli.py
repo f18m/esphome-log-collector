@@ -64,7 +64,7 @@ def web(tmp_path, make_config):
     seed(s, "a", 30, prefix="alpha")
     seed(s, "b", 5, prefix="beta")
     s.add_log("a", None, s.start_session("a", None)[0], "[00:00:00]\x1b[0;31m[E][x:1]: failure 100%_done\x1b[0m")
-    s.set_status("a", state="connected", address="1.1.1.1")
+    s.set_status("a", state="connected", address="1.1.1.1", error="previous connection error")
     s.checkpoint()
     with RunningServer(cfg) as server:
         yield f"http://127.0.0.1:{server.port}", server, cfg
@@ -111,7 +111,8 @@ def test_status_page_and_api(web):
     assert "<td>2025-01-02 03:04:05</td>" in body
     assert "2025-01-02 03:04:05.678901" not in body
     assert "<th>Log lines</th><th>Log duration</th>" in body
-    assert "<td>31</td><td>&lt;1 min</td>" in body
+    assert "<td>31</td><td>&lt;1 min</td><td>0</td><td>-</td><td>none</td>" in body
+    assert "previous connection error" not in body
     assert "<td>-</td><td>none</td>" in body
     css = get(base + "/static/app.css")[1]
     assert "td.address" in css and "font-family: ui-monospace" in css

@@ -161,7 +161,7 @@ class DeviceStatus(BaseModel):
     last_line_at: str | None = None
     last_error: str | None = None
     last_error_at: str | None = None
-    attempts: int
+    attempts: int = Field(description="Cumulative number of connection attempts started for this device.")
     next_retry_at: str | None = None
 
 
@@ -414,7 +414,9 @@ def status_page(request: Request) -> Response:
         values["last_line_at"] = html.escape(_format_utc_timestamp(row["last_line_at"]))
         values["log_duration"] = html.escape(_format_log_duration(row["first_log_at"], row["last_log_at"]))
         values["next_retry_at"] = html.escape(row["next_retry_at"] or "-")
-        values["last_error"] = html.escape(row["last_error"] or "none")
+        values["last_error"] = html.escape(
+            "none" if row["state"] == "connected" else row["last_error"] or "none"
+        )
         icon, state_class = STATE_INDICATORS.get(row["state"], ("●", "unknown"))
         values["state_indicator"] = (
             f'<span class="state-indicator state-{state_class}" '
