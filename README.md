@@ -218,17 +218,43 @@ Enabled by default. `web.enabled: false` disables it; `bind` (default **127.0.0.
 level, event type, text; paginated), live log tail (`/tail`: device, minimum log level, event type and
 text filters), exports (`/exports`: create + download), and storage (`/storage`: SQLite database/WAL
 size, retained log-line deletion count, and ESPHome cache size). The tail streams newly stored events to the
-browser and reconnects automatically.
+browser and reconnects automatically. The status page is a snapshot rendered on page load; its displayed
+relative time for the last log line ticks forward in the browser, but state changes appear after a reload.
 JSON: `/api/status`, `/api/logs`; Server-Sent Events: `/api/tail` (used by `/tail`; supports `after` and
 the `Last-Event-ID` header for resuming). The server is FastAPI on uvicorn, sharing the collector's event
 loop; on shutdown it stops accepting connections, ends tail streams and finishes in-flight requests
 before SQLite is closed. No device-control operations; the only write is "create export" (CSRF-protected POST).
 
 API errors (`/api/*`) are JSON `{"error": "..."}` (400 invalid parameter, 503 database unavailable);
-HTML pages keep HTML error pages. The OpenAPI 3 document is served at `/openapi.json` (Swagger/ReDoc
-pages are disabled) and committed as [`openapi.json`](openapi.json). It documents only the three `/api/*`
-endpoints: the HTML pages, `POST /export` (CSRF token bound to the form) and `GET /exports/<name>`
-downloads (only generated export names) are browser-UI features, not a public API contract.
+HTML pages keep HTML error pages. The OpenAPI 3 document is served at `/openapi.json` and committed as
+[`openapi.json`](openapi.json). Browse the published [API reference](https://f18m.github.io/esphome-log-collector/)
+for the ReDoc-rendered documentation.
+The schema documents only the three `/api/*` endpoints: the HTML pages, `POST /export` (CSRF token bound
+to the form) and `GET /exports/<name>` downloads (only generated export names) are browser-UI features,
+not a public API contract.
+
+### Using the API from AI agents
+
+An agent that needs to investigate collector logs should first read `/openapi.json` from the configured
+collector URL (or the committed [`openapi.json`](openapi.json)) and use it as the source of truth for
+endpoint parameters and response shapes. Use `GET /api/status` to discover device names and their current
+status, then `GET /api/logs` to search stored events. For example:
+
+```text
+GET <collector-url>/api/logs?device=<device-name>&q=WiFi&start=2026-10-11T00%3A00%3A00Z&page=1&page_size=500
+```
+
+`/api/logs` searches newest-first and returns `events` plus `has_next`. Follow `has_next` and increment
+the 1-based `page` to inspect older results; `page_size` is capped at 500. Narrow searches with `device`,
+`start` (inclusive), `end` (exclusive), `level` or `type` when possible. The `q` parameter performs a
+case-insensitive literal substring search on each event's `raw` line; it does not interpret regular
+expressions. For a regex or a compound pattern, retrieve the relevant pages and match locally against
+`clean` (ANSI-free) or `raw`, as appropriate. Respect the configured retention window: older logs may
+already have been deleted.
+
+The API is read-only and has no authentication. Agents should only query a collector URL explicitly
+provided by the operator and must not attempt the browser UI's export actions or any device-control
+operation. Keep the API bound to localhost or behind an authenticated proxy; do not expose it publicly.
 
 **There is no authentication.** Keep the default localhost binding, or bind `0.0.0.0` only inside the
 container, publish the port on `127.0.0.1` / a private network, and put an authenticated reverse proxy
@@ -260,7 +286,7 @@ a tag get a PEP 440 development version. `0.1.0` is the fallback when SCM metada
 The web UI templates and static assets live in
 [`src/esphome_log_collector/web_assets/`](src/esphome_log_collector/web_assets/) and are included in
 Python package builds. `openapi.json` is generated from the FastAPI application (never edit it by hand);
-`tests/test_web_cli.py` fails when it is out of date.
+`tests/test_web_cli.py` and the API documentation workflow check that it is up to date.
 
 ```bash
 python -m venv .venv && . .venv/bin/activate

@@ -351,6 +351,22 @@ def _format_utc_timestamp(value: str | None) -> str:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _format_time_ago(value: str | None, now: datetime | None = None) -> str:
+    if not value:
+        return "-"
+    timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    seconds = max(0, int(((now or datetime.now(timestamp.tzinfo)) - timestamp).total_seconds()))
+    if seconds < 60:
+        return f"{seconds} sec ago"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} min ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} hr ago"
+    return f"{hours // 24} days ago"
+
+
 def _format_log_duration(first: str | None, last: str | None) -> str:
     if not first or not last:
         return "-"
@@ -412,6 +428,8 @@ def status_page(request: Request) -> Response:
             for key in columns
         }
         values["last_line_at"] = html.escape(_format_utc_timestamp(row["last_line_at"]))
+        values["last_line_timestamp"] = html.escape(row["last_line_at"] or "", quote=True)
+        values["last_line_ago"] = html.escape(_format_time_ago(row["last_line_at"]))
         values["log_duration"] = html.escape(_format_log_duration(row["first_log_at"], row["last_log_at"]))
         values["next_retry_at"] = html.escape(row["next_retry_at"] or "-")
         values["last_error"] = html.escape(
