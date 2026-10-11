@@ -233,6 +233,29 @@ The schema documents only the three `/api/*` endpoints: the HTML pages, `POST /e
 to the form) and `GET /exports/<name>` downloads (only generated export names) are browser-UI features,
 not a public API contract.
 
+### Using the API from AI agents
+
+An agent that needs to investigate collector logs should first read `/openapi.json` from the configured
+collector URL (or the committed [`openapi.json`](openapi.json)) and use it as the source of truth for
+endpoint parameters and response shapes. Use `GET /api/status` to discover device names and their current
+status, then `GET /api/logs` to search stored events. For example:
+
+```text
+GET <collector-url>/api/logs?device=<device-name>&q=WiFi&start=2026-10-11T00%3A00%3A00Z&page=1&page_size=500
+```
+
+`/api/logs` searches newest-first and returns `events` plus `has_next`. Follow `has_next` and increment
+the 1-based `page` to inspect older results; `page_size` is capped at 500. Narrow searches with `device`,
+`start` (inclusive), `end` (exclusive), `level` or `type` when possible. The `q` parameter performs a
+case-insensitive literal substring search on each event's `raw` line; it does not interpret regular
+expressions. For a regex or a compound pattern, retrieve the relevant pages and match locally against
+`clean` (ANSI-free) or `raw`, as appropriate. Respect the configured retention window: older logs may
+already have been deleted.
+
+The API is read-only and has no authentication. Agents should only query a collector URL explicitly
+provided by the operator and must not attempt the browser UI's export actions or any device-control
+operation. Keep the API bound to localhost or behind an authenticated proxy; do not expose it publicly.
+
 **There is no authentication.** Keep the default localhost binding, or bind `0.0.0.0` only inside the
 container, publish the port on `127.0.0.1` / a private network, and put an authenticated reverse proxy
 (basic auth, OIDC, VPN) in front. Set `allowed_hosts` to the proxy's host name to block DNS rebinding.

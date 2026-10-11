@@ -85,5 +85,5 @@ function updateLastLineTimes() {
 
 if (lastLineTimes.length) {
   updateLastLineTimes();
-  setInterval(updateLastLineTimes, 15_000);
+  setInterval(updateLastLineTimes, 3_000);
 }
