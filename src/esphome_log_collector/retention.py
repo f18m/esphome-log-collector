@@ -65,6 +65,7 @@ class Retention:
         total = 0
         while self._budget > 0:
             with self.storage.transaction() as conn:
+                self._record_deleted_log_lines(conn, where, params, order)
                 cur = conn.execute(
                     f"DELETE FROM events WHERE id IN (SELECT id FROM events WHERE {where} ORDER BY {order} LIMIT ?)",
                     (*params, self.cfg.batch_size),
@@ -101,6 +102,7 @@ class Retention:
 
     async def _delete_oldest_batch(self) -> int:
         with self.storage.transaction() as conn:
+            self._record_deleted_log_lines(conn, "1=1", (), "id")
             cur = conn.execute(
                 "DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY id LIMIT ?)", (self.cfg.batch_size,)
             )
@@ -108,6 +110,21 @@ class Retention:
                 conn.execute(f"PRAGMA incremental_vacuum({VACUUM_PAGES})")
         self._budget -= 1
         return cur.rowcount
+
+    def _record_deleted_log_lines(
+        self, conn: sqlite3.Connection, where: str, params: tuple, order: str
+    ) -> None:
+        deleted = conn.execute(
+            f"SELECT COUNT(*) FROM events WHERE event_type=? "
+            f"AND id IN (SELECT id FROM events WHERE {where} ORDER BY {order} LIMIT ?)",
+            (st.LOG, *params, self.cfg.batch_size),
+        ).fetchone()[0]
+        if deleted:
+            conn.execute(
+                "INSERT INTO meta(key, value) VALUES ('retention_deleted_log_lines', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER) + excluded.value",
+                (str(deleted),),
+            )
 
     def _prune_sessions(self) -> int:
         with self.storage.transaction() as conn:

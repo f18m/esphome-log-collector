@@ -13,11 +13,13 @@ import hmac
 import html
 import json
 import logging
+import os
 import secrets
 import sqlite3
 import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import closing
+from datetime import datetime
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
@@ -32,6 +34,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from . import __version__
 from .config import Config
 from .export import EXPORT_NAME_RE, ExportError, create_export
 from .parsing import LEVELS, strip_ansi
@@ -248,15 +251,17 @@ def _page(request: Request, title: str, template: str, status: int = 200, **valu
         "status" if path == "/" else
         "logs" if path == "/logs" else
         "tail" if path == "/tail" else
+        "storage" if path == "/storage" else
         "exports" if path == "/exports" or path.startswith("/exports/") else
         ""
     )
     document_values = {
         "title": html.escape(title),
+        "version": html.escape(__version__),
         "content": content,
         "page_class": f"{active_page}-page" if active_page in {"logs", "tail"} else "",
     }
-    for page in ("status", "logs", "tail", "exports"):
+    for page in ("status", "logs", "tail", "exports", "storage"):
         selected = page == active_page
         document_values[f"{page}_class"] = "active" if selected else ""
         document_values[f"{page}_current"] = 'aria-current="page"' if selected else ""
@@ -315,6 +320,55 @@ def _event(row: sqlite3.Row) -> dict[str, Any]:
     return {**dict(row), "clean": strip_ansi(row["raw"])}
 
 
+def _format_size(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    raise AssertionError("unreachable")
+
+
+def _directory_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    size = 0
+    pending = [path]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    size += entry.stat(follow_symlinks=False).st_size
+    return size
+
+
+def _format_utc_timestamp(value: str | None) -> str:
+    if not value:
+        return "-"
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _format_log_duration(first: str | None, last: str | None) -> str:
+    if not first or not last:
+        return "-"
+    seconds = max(
+        0,
+        int((datetime.fromisoformat(last.replace("Z", "+00:00"))
+             - datetime.fromisoformat(first.replace("Z", "+00:00"))).total_seconds()),
+    )
+    minutes = seconds // 60
+    days, remaining_minutes = divmod(minutes, 24 * 60)
+    hours, remaining_minutes = divmod(remaining_minutes, 60)
+    if days:
+        return f"{days}d" + (f" {hours}h" if hours else "")
+    if hours:
+        return f"{hours}h" + (f" {remaining_minutes}m" if remaining_minutes else "")
+    return f"{minutes} min" if minutes else "<1 min"
+
+
 # ---- routes ----
 router = APIRouter()
 
@@ -334,11 +388,15 @@ def status_page(request: Request) -> Response:
     with _state(request).db() as conn:
         rows = conn.execute(
             """
-            SELECT device_status.*,
-                   (SELECT COUNT(*) FROM events
-                    WHERE events.device = device_status.device AND events.event_type = ?)
-                       AS log_count
+            SELECT device_status.*, COALESCE(logs.log_count, 0) AS log_count,
+                   logs.first_log_at, logs.last_log_at
             FROM device_status
+            LEFT JOIN (
+                SELECT device, COUNT(*) AS log_count, MIN(ts) AS first_log_at, MAX(ts) AS last_log_at
+                FROM events
+                WHERE event_type = ?
+                GROUP BY device
+            ) AS logs ON logs.device = device_status.device
             ORDER BY device
             """,
             (LOG,),
@@ -353,6 +411,8 @@ def status_page(request: Request) -> Response:
             key: html.escape(str(row[key] if row[key] is not None else ""))
             for key in columns
         }
+        values["last_line_at"] = html.escape(_format_utc_timestamp(row["last_line_at"]))
+        values["log_duration"] = html.escape(_format_log_duration(row["first_log_at"], row["last_log_at"]))
         values["next_retry_at"] = html.escape(row["next_retry_at"] or "-")
         values["last_error"] = html.escape(row["last_error"] or "none")
         icon, state_class = STATE_INDICATORS.get(row["state"], ("●", "unknown"))
@@ -456,6 +516,25 @@ def exports_page(request: Request) -> Response:
         request, "Exports", "exports.html",
         csrf_token=html.escape(state.csrf_token, quote=True), devices=devices, files=rendered_files,
     )
+
+
+@router.get("/storage", include_in_schema=False, response_class=HTMLResponse)
+def storage_page(request: Request) -> Response:
+    state = _state(request)
+    db_size = state.config.db_path.stat().st_size
+    wal_path = Path(f"{state.config.db_path}-wal")
+    if wal_path.exists():
+        db_size += wal_path.stat().st_size
+    with state.db() as conn:
+        row = conn.execute(
+            "SELECT value FROM meta WHERE key='retention_deleted_log_lines'"
+        ).fetchone()
+    values = {
+        "database_size": html.escape(_format_size(db_size)),
+        "retention_deleted_log_lines": html.escape(str(int(row["value"]) if row else 0)),
+        "esphome_cache_size": html.escape(_format_size(_directory_size(state.config.data_dir / "esphome-data"))),
+    }
+    return _page(request, "Storage", "storage.html", **values)
 
 
 @router.get("/exports/{name:path}", include_in_schema=False)

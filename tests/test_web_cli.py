@@ -10,10 +10,11 @@ import urllib.request
 
 import pytest
 
+from esphome_log_collector import __version__
 from esphome_log_collector import storage as st
 from esphome_log_collector.cli import main
 from esphome_log_collector.openapi_cli import main as openapi_main, render_openapi
-from esphome_log_collector.web import WebServer
+from esphome_log_collector.web import WebServer, _format_log_duration
 from helpers import seed
 
 
@@ -87,7 +88,10 @@ def test_web_enabled_and_localhost_by_default(make_config):
 
 
 def test_status_page_and_api(web):
-    base, _, _ = web
+    base, _, cfg = web
+    storage = st.Storage(cfg.db_path)
+    storage.set_status("a", state="connected", last_line_at="2025-01-02T03:04:05.678901Z")
+    storage.close()
     status, body, headers = get(base + "/")
     assert status == 200 and "connected" in body and headers["Content-Security-Policy"].startswith("default-src 'none'")
     assert "/static/app.css" in body and 'name="viewport"' in body
@@ -99,16 +103,32 @@ def test_status_page_and_api(web):
     assert "img-src https:" not in headers["Content-Security-Policy"]
     assert 'class="project-icon" href="https://github.com/f18m/esphome-log-collector/"' in body
     assert '<img src="/static/favicon.svg" alt="" width="40" height="40">' in body
-    assert '<span class="site-title">ESPHome Log Collector</span>' in body
+    assert f'<span class="site-title">ESPHome Log Collector v{__version__}</span>' in body
     assert '<footer class="site-footer">' in body
     assert '<a href="https://github.com/f18m/esphome-log-collector/">Project homepage</a>' in body
     assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
     assert '<td class="address">1.1.1.1</td>' in body
-    assert "<th>Log lines</th>" in body and "<td>31</td>" in body
+    assert "<td>2025-01-02 03:04:05</td>" in body
+    assert "2025-01-02 03:04:05.678901" not in body
+    assert "<th>Log lines</th><th>Log duration</th>" in body
+    assert "<td>31</td><td>&lt;1 min</td>" in body
     assert "<td>-</td><td>none</td>" in body
     css = get(base + "/static/app.css")[1]
     assert "td.address" in css and "font-family: ui-monospace" in css
     assert json.loads(get(base + "/api/status")[1])[0]["device"] == "a"
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "expected"),
+    [
+        ("2025-01-01T00:00:00.000000Z", "2025-01-01T00:12:00.000000Z", "12 min"),
+        ("2025-01-01T00:00:00.000000Z", "2025-01-01T03:20:00.000000Z", "3h 20m"),
+        ("2025-01-01T00:00:00.000000Z", "2025-01-03T05:00:00.000000Z", "2d 5h"),
+        (None, None, "-"),
+    ],
+)
+def test_format_log_duration(first, last, expected):
+    assert _format_log_duration(first, last) == expected
 
 
 def test_static_assets(web):
@@ -197,6 +217,25 @@ def test_tail_page_and_live_stream(web):
     assert "script-src 'self'" in headers["Content-Security-Policy"]
     assert "connect-src 'self'" in headers["Content-Security-Policy"]
     assert get(base + "/api/tail?after=invalid")[0] == 400
+
+
+def test_storage_page(web):
+    base, _, cfg = web
+    cache = cfg.data_dir / "esphome-data" / "device-a"
+    cache.mkdir(parents=True)
+    (cache / "cache.bin").write_bytes(b"x" * 2048)
+    storage = st.Storage(cfg.db_path)
+    storage._conn.execute(
+        "INSERT INTO meta(key, value) VALUES ('retention_deleted_log_lines', '123')"
+    )
+    storage.close()
+
+    status, body, _ = get(base + "/storage")
+    assert status == 200
+    assert '<a href="/storage" class="active" aria-current="page">Storage</a>' in body
+    assert "<th>SQLite database (including WAL)</th>" in body
+    assert "<td>123</td>" in body
+    assert "<th>ESPHome cache (esphome-data)</th><td>2.0 KiB</td>" in body
 
     with st.connect(cfg.db_path, readonly=True) as conn:
         after = conn.execute("SELECT MAX(id) FROM events").fetchone()[0]
