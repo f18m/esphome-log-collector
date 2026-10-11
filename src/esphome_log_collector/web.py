@@ -18,6 +18,7 @@ import sqlite3
 import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import closing
+from datetime import datetime
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
@@ -317,6 +318,30 @@ def _event(row: sqlite3.Row) -> dict[str, Any]:
     return {**dict(row), "clean": strip_ansi(row["raw"])}
 
 
+def _format_utc_timestamp(value: str | None) -> str:
+    if not value:
+        return "-"
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _format_log_duration(first: str | None, last: str | None) -> str:
+    if not first or not last:
+        return "-"
+    seconds = max(
+        0,
+        int((datetime.fromisoformat(last.replace("Z", "+00:00"))
+             - datetime.fromisoformat(first.replace("Z", "+00:00"))).total_seconds()),
+    )
+    minutes = seconds // 60
+    days, remaining_minutes = divmod(minutes, 24 * 60)
+    hours, remaining_minutes = divmod(remaining_minutes, 60)
+    if days:
+        return f"{days}d" + (f" {hours}h" if hours else "")
+    if hours:
+        return f"{hours}h" + (f" {remaining_minutes}m" if remaining_minutes else "")
+    return f"{minutes} min" if minutes else "<1 min"
+
+
 # ---- routes ----
 router = APIRouter()
 
@@ -336,11 +361,15 @@ def status_page(request: Request) -> Response:
     with _state(request).db() as conn:
         rows = conn.execute(
             """
-            SELECT device_status.*,
-                   (SELECT COUNT(*) FROM events
-                    WHERE events.device = device_status.device AND events.event_type = ?)
-                       AS log_count
+            SELECT device_status.*, COALESCE(logs.log_count, 0) AS log_count,
+                   logs.first_log_at, logs.last_log_at
             FROM device_status
+            LEFT JOIN (
+                SELECT device, COUNT(*) AS log_count, MIN(ts) AS first_log_at, MAX(ts) AS last_log_at
+                FROM events
+                WHERE event_type = ?
+                GROUP BY device
+            ) AS logs ON logs.device = device_status.device
             ORDER BY device
             """,
             (LOG,),
@@ -355,6 +384,8 @@ def status_page(request: Request) -> Response:
             key: html.escape(str(row[key] if row[key] is not None else ""))
             for key in columns
         }
+        values["last_line_at"] = html.escape(_format_utc_timestamp(row["last_line_at"]))
+        values["log_duration"] = html.escape(_format_log_duration(row["first_log_at"], row["last_log_at"]))
         values["next_retry_at"] = html.escape(row["next_retry_at"] or "-")
         values["last_error"] = html.escape(row["last_error"] or "none")
         icon, state_class = STATE_INDICATORS.get(row["state"], ("●", "unknown"))
