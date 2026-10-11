@@ -157,6 +157,8 @@ SQLite (`<storage.path>/collector.sqlite3`; WAL journal, `synchronous=NORMAL`, f
 Runs every `cleanup_interval_seconds` in committed batches (`batch_size`, at most `max_batches_per_run`
 batches per run – leftovers are deferred to the next run and logged), so collection continues during
 cleanup. Everything deleted is counted in the log; nothing outside these policies is removed.
+The web UI's Storage tab shows the cumulative number of deleted log lines; this counter is recorded
+from the version that introduced it and cannot include deletions made by earlier versions.
 
 * `max_age_days` – delete events older than this. `per_device.<name>.max_age_days` / `max_events`.
 * `max_total_size_mb` – measured as **live database pages** (`(page_count − freelist_count) ×
@@ -214,7 +216,8 @@ files, unredacted configuration and temp files are never included.
 Enabled by default. `web.enabled: false` disables it; `bind` (default **127.0.0.1**), `port`,
 `page_size`, `allowed_hosts`. Pages: status (`/`), terminal-style search (`/logs`: device, time range, minimum log
 level, event type, text; paginated), live log tail (`/tail`: device, minimum log level, event type and
-text filters), exports (`/exports`: create + download). The tail streams newly stored events to the
+text filters), exports (`/exports`: create + download), and storage (`/storage`: SQLite database/WAL
+size, retained log-line deletion count, and ESPHome cache size). The tail streams newly stored events to the
 browser and reconnects automatically.
 JSON: `/api/status`, `/api/logs`; Server-Sent Events: `/api/tail` (used by `/tail`; supports `after` and
 the `Last-Event-ID` header for resuming). The server is FastAPI on uvicorn, sharing the collector's event

@@ -28,6 +28,21 @@ def test_max_age_deletes_only_old_events_in_batches(tmp_path):
     assert stats["events_age"] == 30 and n_events(s) == 5
     assert s._conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1  # empty session pruned
     assert s.integrity_check() == "ok"
+    assert s._conn.execute(
+        "SELECT value FROM meta WHERE key='retention_deleted_log_lines'"
+    ).fetchone()[0] == "30"
+
+
+def test_retention_deleted_log_line_count_is_cumulative(tmp_path):
+    s, mk = retention(tmp_path)
+    seed(s, "a", 4, age_days=10)
+    seed(s, "b", 3, age_days=10)
+    r = mk(max_age_days=5, batch_size=2)
+    asyncio.run(r.run_once())
+    asyncio.run(r.run_once())
+    assert s._conn.execute(
+        "SELECT value FROM meta WHERE key='retention_deleted_log_lines'"
+    ).fetchone()[0] == "7"
 
 
 def test_batch_budget_bounds_work_per_run(tmp_path):

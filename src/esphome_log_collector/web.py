@@ -13,6 +13,7 @@ import hmac
 import html
 import json
 import logging
+import os
 import secrets
 import sqlite3
 import time
@@ -250,6 +251,7 @@ def _page(request: Request, title: str, template: str, status: int = 200, **valu
         "status" if path == "/" else
         "logs" if path == "/logs" else
         "tail" if path == "/tail" else
+        "storage" if path == "/storage" else
         "exports" if path == "/exports" or path.startswith("/exports/") else
         ""
     )
@@ -259,7 +261,7 @@ def _page(request: Request, title: str, template: str, status: int = 200, **valu
         "content": content,
         "page_class": f"{active_page}-page" if active_page in {"logs", "tail"} else "",
     }
-    for page in ("status", "logs", "tail", "exports"):
+    for page in ("status", "logs", "tail", "exports", "storage"):
         selected = page == active_page
         document_values[f"{page}_class"] = "active" if selected else ""
         document_values[f"{page}_current"] = 'aria-current="page"' if selected else ""
@@ -316,6 +318,31 @@ def _clamp_page(page: int, page_size: int | None, default_size: int) -> tuple[in
 
 def _event(row: sqlite3.Row) -> dict[str, Any]:
     return {**dict(row), "clean": strip_ansi(row["raw"])}
+
+
+def _format_size(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    raise AssertionError("unreachable")
+
+
+def _directory_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    size = 0
+    pending = [path]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif entry.is_file(follow_symlinks=False):
+                    size += entry.stat(follow_symlinks=False).st_size
+    return size
 
 
 def _format_utc_timestamp(value: str | None) -> str:
@@ -489,6 +516,25 @@ def exports_page(request: Request) -> Response:
         request, "Exports", "exports.html",
         csrf_token=html.escape(state.csrf_token, quote=True), devices=devices, files=rendered_files,
     )
+
+
+@router.get("/storage", include_in_schema=False, response_class=HTMLResponse)
+def storage_page(request: Request) -> Response:
+    state = _state(request)
+    db_size = state.config.db_path.stat().st_size
+    wal_path = Path(f"{state.config.db_path}-wal")
+    if wal_path.exists():
+        db_size += wal_path.stat().st_size
+    with state.db() as conn:
+        row = conn.execute(
+            "SELECT value FROM meta WHERE key='retention_deleted_log_lines'"
+        ).fetchone()
+    values = {
+        "database_size": html.escape(_format_size(db_size)),
+        "retention_deleted_log_lines": html.escape(str(int(row["value"]) if row else 0)),
+        "esphome_cache_size": html.escape(_format_size(_directory_size(state.config.data_dir / "esphome-data"))),
+    }
+    return _page(request, "Storage", "storage.html", **values)
 
 
 @router.get("/exports/{name:path}", include_in_schema=False)

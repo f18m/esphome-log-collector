@@ -218,6 +218,25 @@ def test_tail_page_and_live_stream(web):
     assert "connect-src 'self'" in headers["Content-Security-Policy"]
     assert get(base + "/api/tail?after=invalid")[0] == 400
 
+
+def test_storage_page(web):
+    base, _, cfg = web
+    cache = cfg.data_dir / "esphome-data" / "device-a"
+    cache.mkdir(parents=True)
+    (cache / "cache.bin").write_bytes(b"x" * 2048)
+    storage = st.Storage(cfg.db_path)
+    storage._conn.execute(
+        "INSERT INTO meta(key, value) VALUES ('retention_deleted_log_lines', '123')"
+    )
+    storage.close()
+
+    status, body, _ = get(base + "/storage")
+    assert status == 200
+    assert '<a href="/storage" class="active" aria-current="page">Storage</a>' in body
+    assert "<th>SQLite database (including WAL)</th>" in body
+    assert "<td>123</td>" in body
+    assert "<th>ESPHome cache (esphome-data)</th><td>2.0 KiB</td>" in body
+
     with st.connect(cfg.db_path, readonly=True) as conn:
         after = conn.execute("SELECT MAX(id) FROM events").fetchone()[0]
     response = urllib.request.urlopen(base + f"/api/tail?device=a&after={after}", timeout=5)
