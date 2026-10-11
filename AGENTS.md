@@ -13,7 +13,7 @@ creating sanitized log/configuration exports.
 ## Repository layout
 
 - `src/esphome_log_collector/`: application source, including configuration,
-  collection backends, storage, exports, and web server.
+  collection backends, storage, exports, and the FastAPI web server.
 - `src/esphome_log_collector/web_assets/`: HTML templates and static assets for
   the web UI; these are included in Python package builds.
 - `tests/`: pytest test suite, including collector, storage, export, config, and
@@ -33,6 +33,9 @@ python -m pip install -r requirements-dev.txt
 python -m pip install --no-deps -e .
 python -m pytest
 ```
+
+After changing the web API run `python -m esphome_log_collector.openapi_cli` to
+regenerate the committed `openapi.json`.
 
 See `README.md` for configuration, operation, web UI security considerations,
 and deployment details.

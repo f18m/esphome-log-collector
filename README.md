@@ -216,8 +216,16 @@ Enabled by default. `web.enabled: false` disables it; `bind` (default **127.0.0.
 level, event type, text; paginated), live log tail (`/tail`: device, minimum log level, event type and
 text filters), exports (`/exports`: create + download). The tail streams newly stored events to the
 browser and reconnects automatically.
-JSON: `/api/status`, `/api/logs`; Server-Sent Events: `/api/tail` (used by `/tail`). Standard library
-only; no device-control operations; the only write is "create export" (CSRF-protected POST).
+JSON: `/api/status`, `/api/logs`; Server-Sent Events: `/api/tail` (used by `/tail`; supports `after` and
+the `Last-Event-ID` header for resuming). The server is FastAPI on uvicorn, sharing the collector's event
+loop; on shutdown it stops accepting connections, ends tail streams and finishes in-flight requests
+before SQLite is closed. No device-control operations; the only write is "create export" (CSRF-protected POST).
+
+API errors (`/api/*`) are JSON `{"error": "..."}` (400 invalid parameter, 503 database unavailable);
+HTML pages keep HTML error pages. The OpenAPI 3 document is served at `/openapi.json` (Swagger/ReDoc
+pages are disabled) and committed as [`openapi.json`](openapi.json). It documents only the three `/api/*`
+endpoints: the HTML pages, `POST /export` (CSRF token bound to the form) and `GET /exports/<name>`
+downloads (only generated export names) are browser-UI features, not a public API contract.
 
 **There is no authentication.** Keep the default localhost binding, or bind `0.0.0.0` only inside the
 container, publish the port on `127.0.0.1` / a private network, and put an authenticated reverse proxy
@@ -248,12 +256,14 @@ Package builds get their version from Git tags (use `vX.Y.Z` for releases); comm
 a tag get a PEP 440 development version. `0.1.0` is the fallback when SCM metadata is unavailable.
 The web UI templates and static assets live in
 [`src/esphome_log_collector/web_assets/`](src/esphome_log_collector/web_assets/) and are included in
-Python package builds.
+Python package builds. `openapi.json` is generated from the FastAPI application (never edit it by hand);
+`tests/test_web_cli.py` fails when it is out of date.
 
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt && pip install --no-deps -e .
 python -m pytest            # full suite (uses a fake esphome CLI + a real ESPHome for the option check)
+python -m esphome_log_collector.openapi_cli   # regenerate openapi.json (run from the repo root, after changing web.py)
 docker build -t esphome-log-collector .
 ```
 

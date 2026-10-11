@@ -1,7 +1,9 @@
+import asyncio
 import dataclasses
 import json
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -10,8 +12,47 @@ import pytest
 
 from esphome_log_collector import storage as st
 from esphome_log_collector.cli import main
+from esphome_log_collector.openapi_cli import main as openapi_main, render_openapi
 from esphome_log_collector.web import WebServer
 from helpers import seed
+
+
+class RunningServer:
+    """Runs a WebServer on its own event loop in a thread (as it runs next to the collector)."""
+
+    def __init__(self, cfg):
+        self.server = WebServer(cfg)
+        self._ready = threading.Event()
+        self._error = None
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def _run(self):
+        async def main():
+            self._stop = asyncio.Event()
+            self._loop = asyncio.get_running_loop()
+            try:
+                await self.server.start()
+            except BaseException as err:  # noqa: BLE001
+                self._error = err
+                self._ready.set()
+                return
+            self._ready.set()
+            await self._stop.wait()
+            await self.server.stop()
+
+        asyncio.run(main())
+
+    def __enter__(self):
+        self._thread.start()
+        assert self._ready.wait(10)
+        if self._error:
+            raise self._error
+        return self.server
+
+    def __exit__(self, *exc):
+        self._loop.call_soon_threadsafe(self._stop.set)
+        self._thread.join(15)
+        assert not self._thread.is_alive()
 
 
 @pytest.fixture
@@ -24,10 +65,8 @@ def web(tmp_path, make_config):
     s.add_log("a", None, s.start_session("a", None)[0], "[00:00:00]\x1b[0;31m[E][x:1]: failure 100%_done\x1b[0m")
     s.set_status("a", state="connected", address="1.1.1.1")
     s.checkpoint()
-    server = WebServer(cfg)
-    server.start()
-    yield f"http://127.0.0.1:{server.port}", server, cfg
-    server.stop()
+    with RunningServer(cfg) as server:
+        yield f"http://127.0.0.1:{server.port}", server, cfg
     s.close()
 
 
@@ -230,14 +269,164 @@ def test_allowed_hosts(tmp_path, make_config):
     cfg = make_config([{"name": "a", "address": "1.1.1.1"}], web={"enabled": True, "allowed_hosts": ["logs.example"]})
     cfg = dataclasses.replace(cfg, web=dataclasses.replace(cfg.web, port=0))
     st.Storage(cfg.db_path).close()
-    server = WebServer(cfg)
-    server.start()
-    try:
+    with RunningServer(cfg) as server:
         base = f"http://127.0.0.1:{server.port}"
-        assert get(base + "/api/status")[0] == 403
+        status, body, headers = get(base + "/api/status")
+        assert status == 403 and body == "host not allowed" and headers["X-Frame-Options"] == "DENY"
         assert get(base + "/api/status", headers={"Host": "logs.example"})[0] == 200
+        assert get(base + "/api/status", headers={"Host": "logs.example:8080"})[0] == 200
+        assert get(base + "/", headers={"Host": "evil.example"})[0] == 403
+
+
+# ---- FastAPI migration: contract, errors, streaming, shutdown ----
+def test_api_models_errors_and_security_headers(web):
+    base, _, _ = web
+    status, body, headers = get(base + "/api/status")
+    assert status == 200 and headers["Content-Type"] == "application/json"
+    row = json.loads(body)[0]
+    assert set(row) == {"device", "address", "backend", "source", "state", "session_id", "updated_at", "last_line_at",
+                        "last_error", "last_error_at", "attempts", "next_retry_at"}
+    for header, value in (("X-Content-Type-Options", "nosniff"), ("X-Frame-Options", "DENY"),
+                          ("Referrer-Policy", "no-referrer"), ("Cache-Control", "no-store")):
+        assert headers[header] == value
+    event = json.loads(get(base + "/api/logs?page_size=1")[1])["events"][0]
+    assert set(event) == {"id", "ts", "device", "session_id", "event_type", "level", "component", "message", "raw", "clean"}
+    for bad in ("/api/logs?page=x", "/api/logs?page_size=x", "/api/logs?start=garbage", "/api/logs?type=nope",
+                "/api/tail?after=-1", "/api/tail?level=NOPE"):
+        status, body, headers = get(base + bad)
+        assert status == 400 and headers["Content-Type"] == "application/json", bad
+        assert isinstance(json.loads(body)["error"], str)
+    status, body, headers = get(base + "/api/tail?after=1", headers={"Last-Event-ID": "oops"})
+    assert status == 400 and "error" in json.loads(body)
+    status, body, _ = get(base + "/api/nope")
+    assert status == 404 and "error" in json.loads(body)
+    # HTML pages keep HTML errors
+    status, body, headers = get(base + "/logs?start=garbage")
+    assert status == 400 and headers["Content-Type"].startswith("text/html") and "<html" in body
+    assert get(base + "/logs?page_size=1000")[0] == 200
+    status, body, headers = get(base + "/nope")
+    assert status == 404 and headers["Content-Type"].startswith("text/html")
+    assert get(base + "/export", data=b"", method="PUT")[0] == 405
+    assert get(base + "/nope", data=b"x", method="POST")[0] == 404
+
+
+def test_openapi_served_and_docs_disabled(web):
+    base, _, _ = web
+    status, body, headers = get(base + "/openapi.json")
+    assert status == 200 and headers["Content-Type"].startswith("application/json")
+    assert json.loads(body) == json.loads(render_openapi())
+    assert get(base + "/docs")[0] == 404 and get(base + "/redoc")[0] == 404
+
+
+def test_openapi_contract():
+    spec = json.loads(render_openapi())
+    assert set(spec["paths"]) == {"/api/status", "/api/logs", "/api/tail"}  # UI-only routes are not public API
+    tail = spec["paths"]["/api/tail"]["get"]["responses"]
+    assert list(tail["200"]["content"]) == ["text/event-stream"] and "application/json" not in tail["200"]["content"]
+    assert "422" not in json.dumps(spec) and "HTTPValidationError" not in json.dumps(spec)
+    params = {p["name"] for p in spec["paths"]["/api/tail"]["get"]["parameters"]}
+    assert {"after", "last-event-id", "device", "level", "type", "q", "start", "end"} <= params
+    logs = spec["paths"]["/api/logs"]["get"]
+    assert logs["responses"]["400"]["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/ErrorResponse"}
+    assert set(spec["components"]["schemas"]) == {"DeviceStatus", "ErrorResponse", "LogEvent", "LogPage"}
+
+
+def test_committed_openapi_json_is_in_sync():
+    from pathlib import Path
+    committed = Path(__file__).resolve().parent.parent / "openapi.json"
+    assert openapi_main(["--check", "-o", str(committed)]) == 0, (
+        "openapi.json is out of date; run: python -m esphome_log_collector.openapi_cli"
+    )
+    assert committed.read_text(encoding="utf-8") == render_openapi()
+
+
+def _read_until(response, prefix):
+    while True:
+        line = response.readline()
+        assert line, "stream ended"
+        if line.startswith(prefix):
+            return line
+
+
+def test_tail_resume_ids_and_disconnect(web):
+    base, server, cfg = web
+    with st.connect(cfg.db_path, readonly=True) as conn:
+        after = conn.execute("SELECT MAX(id) FROM events").fetchone()[0]
+    writer = st.Storage(cfg.db_path)
+    sid, _ = writer.start_session("a", None)
+    for i in range(3):
+        writer.add_log("a", None, sid, f"[00:00:00][I][t:1]: line {i}")
+    # Last-Event-ID wins over ?after= (EventSource reconnect)
+    request = urllib.request.Request(base + "/api/tail?device=a&after=0", headers={"Last-Event-ID": str(after)})
+    response = urllib.request.urlopen(request, timeout=10)
+    try:
+        assert response.headers["Content-Type"].startswith("text/event-stream")
+        assert response.headers["X-Accel-Buffering"] == "no" and response.headers["Cache-Control"] == "no-cache"
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.readline() == b": connected\n"
+        ids = []
+        for _ in range(3):
+            id_line = _read_until(response, b"id: ")
+            data = json.loads(_read_until(response, b"data: ").removeprefix(b"data: "))
+            assert int(id_line.removeprefix(b"id: ")) == data["id"]
+            ids.append(data["id"])
+        assert ids == sorted(ids) and ids[0] > after and len(set(ids)) == 3
+        assert server.state.active_streams == 1
     finally:
-        server.stop()
+        response.close()
+        writer.close()
+    deadline = time.time() + 10
+    while server.state.active_streams and time.time() < deadline:
+        time.sleep(0.05)
+    assert server.state.active_streams == 0  # generator exited after the client went away
+
+
+def test_concurrent_streams_do_not_block_server(web):
+    base, server, cfg = web
+    with st.connect(cfg.db_path, readonly=True) as conn:
+        after = conn.execute("SELECT MAX(id) FROM events").fetchone()[0]
+    streams = [urllib.request.urlopen(base + f"/api/tail?after={after}", timeout=10) for _ in range(8)]
+    try:
+        for stream in streams:
+            assert stream.readline() == b": connected\n"
+        assert server.state.active_streams == 8
+        started = time.monotonic()
+        assert get(base + "/api/status")[0] == 200 and get(base + "/api/logs?page_size=5")[0] == 200
+        assert time.monotonic() - started < 3
+        writer = st.Storage(cfg.db_path)
+        sid, _ = writer.start_session("a", None)
+        writer.add_log("a", None, sid, "[00:00:00][I][t:1]: broadcast")
+        writer.close()
+        for stream in streams:  # every client receives the new event
+            assert b"broadcast" in _read_until(stream, b"data: ")
+    finally:
+        for stream in streams:
+            stream.close()
+
+
+def test_shutdown_ends_streams_and_releases_port(tmp_path, make_config):
+    cfg = make_config([{"name": "a", "address": "1.1.1.1"}], web={"enabled": True})
+    cfg = dataclasses.replace(cfg, web=dataclasses.replace(cfg.web, port=0))
+    st.Storage(cfg.db_path).close()
+    running = RunningServer(cfg)
+    server = running.__enter__()
+    stream = urllib.request.urlopen(f"http://127.0.0.1:{server.port}/api/tail", timeout=10)
+    assert stream.readline() == b": connected\n"
+    started = time.monotonic()
+    running.__exit__(None, None, None)  # returns only after stop() completed
+    assert time.monotonic() - started < 10
+    assert server.state.active_streams == 0
+    stream.close()
+
+
+def test_bind_failure_is_reported(tmp_path, make_config):
+    cfg = make_config([{"name": "a", "address": "1.1.1.1"}], web={"enabled": True})
+    cfg = dataclasses.replace(cfg, web=dataclasses.replace(cfg.web, port=0))
+    st.Storage(cfg.db_path).close()
+    with RunningServer(cfg) as first:
+        busy = dataclasses.replace(cfg, web=dataclasses.replace(cfg.web, port=first.port))
+        with pytest.raises(OSError):
+            RunningServer(busy).__enter__()
 
 
 # ---- CLI ----

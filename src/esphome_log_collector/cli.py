@@ -78,13 +78,13 @@ async def run_collector(config: Config) -> None:
             )
         if config.web.enabled:
             web = WebServer(config, redactor)
-            web.start()
+            await web.start()
         log.info("esphome-log-collector %s started (ESPHome %s, %d configured device(s))",
                  __version__, SUPPORTED_ESPHOME_VERSION, len(config.devices))
         await collector.run(list(config.devices))
     finally:
         if web:
-            await asyncio.to_thread(web.stop)
+            await web.stop()
         storage.close()
         log.info("shutdown complete")
 
