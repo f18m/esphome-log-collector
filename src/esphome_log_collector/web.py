@@ -32,6 +32,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from . import __version__
 from .config import Config
 from .export import EXPORT_NAME_RE, ExportError, create_export
 from .parsing import LEVELS, strip_ansi
@@ -253,6 +254,7 @@ def _page(request: Request, title: str, template: str, status: int = 200, **valu
     )
     document_values = {
         "title": html.escape(title),
+        "version": html.escape(__version__),
         "content": content,
         "page_class": f"{active_page}-page" if active_page in {"logs", "tail"} else "",
     }

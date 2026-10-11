@@ -10,6 +10,7 @@ import urllib.request
 
 import pytest
 
+from esphome_log_collector import __version__
 from esphome_log_collector import storage as st
 from esphome_log_collector.cli import main
 from esphome_log_collector.openapi_cli import main as openapi_main, render_openapi
@@ -99,7 +100,7 @@ def test_status_page_and_api(web):
     assert "img-src https:" not in headers["Content-Security-Policy"]
     assert 'class="project-icon" href="https://github.com/f18m/esphome-log-collector/"' in body
     assert '<img src="/static/favicon.svg" alt="" width="40" height="40">' in body
-    assert '<span class="site-title">ESPHome Log Collector</span>' in body
+    assert f'<span class="site-title">ESPHome Log Collector v{__version__}</span>' in body
     assert '<footer class="site-footer">' in body
     assert '<a href="https://github.com/f18m/esphome-log-collector/">Project homepage</a>' in body
     assert '<span class="state-indicator state-connected" title="connected" aria-label="connected">●</span>' in body
