@@ -226,6 +226,17 @@ class Storage:
             assignments = ", ".join(f"{k}=?" for k in fields)
             conn.execute(f"UPDATE device_status SET {assignments} WHERE device=?", (*fields.values(), device))
 
+    def start_attempt(self, device: str, session_id: str) -> None:
+        """Record the beginning of a connection attempt, including attempts that succeed."""
+        with self.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE device_status SET state='connecting', session_id=?, updated_at=?, "
+                "next_retry_at=NULL, attempts=attempts+1 WHERE device=?",
+                (session_id, now_ts(), device),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError(f"cannot record connection attempt for unknown device {device!r}")
+
     def mark_all_stopped(self) -> None:
         with self.transaction() as conn:
             conn.execute("UPDATE device_status SET state='stopped', session_id=NULL, next_retry_at=NULL, updated_at=?",

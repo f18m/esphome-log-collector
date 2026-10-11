@@ -176,7 +176,7 @@ class DeviceCollector:
                 self._event(st.SESSION_START, f"collection session started (backend={self.device.backend})")
                 if previous:
                     self._event(st.GAP, f"no events stored between {previous} and {now_ts()}")
-                self.storage.set_status(name, state="connecting", session_id=self.session_id)
+                self.storage.start_attempt(name, self.session_id)
                 try:
                     if self.device.backend == "cli":
                         result = await self._session_cli()
@@ -196,7 +196,7 @@ class DeviceCollector:
                 retry_at = format_ts(utc_now() + timedelta(seconds=delay))
                 self.storage.set_status(
                     name, state="backoff", error=result.error or result.reason,
-                    attempts=self.backoff.attempt, next_retry_at=retry_at,
+                    next_retry_at=retry_at,
                 )
                 log.warning("device %s: disconnected (%s); retrying in %.1fs", name, result.reason, delay)
                 self._retry_event(delay, retry_at)

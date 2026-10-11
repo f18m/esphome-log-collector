@@ -15,6 +15,7 @@
             "title": "Address"
           },
           "attempts": {
+            "description": "Cumulative number of connection attempts started for this device.",
             "title": "Attempts",
             "type": "integer"
           },
