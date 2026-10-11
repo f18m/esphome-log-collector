@@ -32,7 +32,7 @@ where = ["src"]
 esphome_log_collector = ["web_assets/templates/*.html", "web_assets/static/*"]
 
 [tool.setuptools_scm]
-fallback_version = "0.1.0"
+fallback_version = "0.2.4"
 version_file = "src/esphome_log_collector/_version.py"
 
 [tool.pytest.ini_options]

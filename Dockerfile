@@ -3,6 +3,7 @@
 ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.12-slim-bookworm
 
 FROM ${PYTHON_IMAGE} AS build
+ARG SETUPTOOLS_SCM_PRETEND_VERSION
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
@@ -11,7 +12,11 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-deps .
+RUN if [ -n "$SETUPTOOLS_SCM_PRETEND_VERSION" ]; then \
+        SETUPTOOLS_SCM_PRETEND_VERSION="$SETUPTOOLS_SCM_PRETEND_VERSION" pip install --no-deps .; \
+    else \
+        pip install --no-deps .; \
+    fi
 
 FROM ${PYTHON_IMAGE}
 ENV PATH=/opt/venv/bin:$PATH \

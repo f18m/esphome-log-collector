@@ -5,6 +5,6 @@ try:
 except ModuleNotFoundError as exc:
     if exc.name != f"{__package__}._version":
         raise
-    __version__ = "0.1.0"
+    __version__ = "N/A"
 
 SUPPORTED_ESPHOME_VERSION = "2026.9.1"

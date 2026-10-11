@@ -19,6 +19,14 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine package version
+        id: package-version
+        run: |
+          python -m pip install --disable-pip-version-check --quiet setuptools-scm
+          echo "version=$(python -m setuptools_scm)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
 
@@ -50,6 +58,8 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          build-args: |
+            SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.package-version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
