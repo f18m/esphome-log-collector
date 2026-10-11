@@ -79,8 +79,8 @@ async def run_collector(config: Config) -> None:
         if config.web.enabled:
             web = WebServer(config, redactor)
             await web.start()
-        log.info("esphome-log-collector %s started (ESPHome %s, %d configured device(s))",
-                 __version__, SUPPORTED_ESPHOME_VERSION, len(config.devices))
+        log.info("collector started (ESPHome %s, %d configured device(s))",
+                 SUPPORTED_ESPHOME_VERSION, len(config.devices))
         await collector.run(list(config.devices))
     finally:
         if web:
@@ -100,6 +100,7 @@ def _load(args: argparse.Namespace) -> Config:
 def cmd_run(args: argparse.Namespace) -> int:
     config = _load(args)
     setup_logging(config)
+    log.info("esphome-log-collector v%s starting", __version__)
     for warning in config.warnings:
         log.warning("config: %s", warning)
     asyncio.run(run_collector(config))

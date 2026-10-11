@@ -2,7 +2,7 @@
 services:
   esphome-log-collector:
     build: .
-    image: esphome-log-collector:0.1.0
+    image: esphome-log-collector:0.2.4
     init: true                    # reaps esphome child processes
     restart: unless-stopped
     stop_grace_period: 30s        # SIGTERM -> graceful shutdown, then SIGKILL

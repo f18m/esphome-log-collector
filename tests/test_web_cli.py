@@ -1,3 +1,4 @@
+from argparse import Namespace
 import asyncio
 import dataclasses
 import json
@@ -10,7 +11,7 @@ import urllib.request
 
 import pytest
 
-from esphome_log_collector import __version__
+from esphome_log_collector import __version__, cli
 from esphome_log_collector import storage as st
 from esphome_log_collector.cli import main
 from esphome_log_collector.openapi_cli import main as openapi_main, render_openapi
@@ -85,6 +86,19 @@ def test_web_enabled_and_localhost_by_default(make_config):
     assert cfg.web.enabled is True and cfg.web.bind == "127.0.0.1"
     disabled = make_config([{"name": "a", "address": "1.1.1.1"}], web={"enabled": False})
     assert disabled.web.enabled is False
+
+
+def test_run_logs_package_version(monkeypatch, capsys, make_config):
+    cfg = make_config([{"name": "a", "address": "1.1.1.1"}])
+
+    async def run(_config):
+        return None
+
+    monkeypatch.setattr(cli, "_load", lambda _args: cfg)
+    monkeypatch.setattr(cli, "run_collector", run)
+
+    assert cli.cmd_run(Namespace()) == 0
+    assert f"esphome-log-collector v{__version__} starting" in capsys.readouterr().err
 
 
 def test_status_page_and_api(web):
