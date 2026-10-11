@@ -1,6 +1,7 @@
 from argparse import Namespace
 import asyncio
 import dataclasses
+from datetime import datetime, timezone
 import json
 import os
 import re
@@ -15,7 +16,7 @@ from esphome_log_collector import __version__, cli
 from esphome_log_collector import storage as st
 from esphome_log_collector.cli import main
 from esphome_log_collector.openapi_cli import main as openapi_main, render_openapi
-from esphome_log_collector.web import WebServer, _format_log_duration
+from esphome_log_collector.web import WebServer, _format_log_duration, _format_time_ago
 from helpers import seed
 
 
@@ -124,7 +125,12 @@ def test_status_page_and_api(web):
     assert '<td class="address">1.1.1.1</td>' in body
     assert "<td>2025-01-02 03:04:05</td>" in body
     assert "2025-01-02 03:04:05.678901" not in body
-    assert "<th>Log lines</th><th>Log duration</th>" in body
+    assert "<th>Last Line (UTC)</th><th>Last Line</th><th>Log lines</th><th>Log span</th>" in body
+    assert (
+        '<time class="last-line-ago" data-timestamp="2025-01-02T03:04:05.678901Z">'
+        in body
+    )
+    assert " days ago</time>" in body
     assert "<td>31</td><td>&lt;1 min</td>" in body
     assert "<td>-</td><td>none</td>" in body
     css = get(base + "/static/app.css")[1]
@@ -145,6 +151,12 @@ def test_format_log_duration(first, last, expected):
     assert _format_log_duration(first, last) == expected
 
 
+def test_format_time_ago():
+    now = datetime(2025, 1, 1, 0, 5, tzinfo=timezone.utc)
+    assert _format_time_ago("2025-01-01T00:00:00.000000Z", now) == "5 min ago"
+    assert _format_time_ago(None, now) == "-"
+
+
 def test_static_assets(web):
     base, _, _ = web
     status, css, headers = get(base + "/static/app.css")
@@ -160,6 +172,7 @@ def test_static_assets(web):
     status, script, headers = get(base + "/static/ui.js")
     assert status == 200 and headers["Content-Type"].startswith("text/javascript")
     assert "sessionStorage" in script and "data-font-target" in script
+    assert "last-line-ago" in script and "setInterval(updateLastLineTimes, 15_000)" in script
     assert get(base + "/static/missing.js")[0] == 404
 
 
