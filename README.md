@@ -297,6 +297,10 @@ python -m esphome_log_collector.openapi_cli   # regenerate openapi.json (run fro
 docker build -t esphome-log-collector .
 ```
 
+The same common tasks are available as `make install`, `make test`, `make openapi`,
+`make docker-build`, and other targets. Run `make help` to list them; local run and
+configuration-check targets accept `CONFIG=path/to/config.yaml`.
+
 To test local changes:
 
 ```bash
