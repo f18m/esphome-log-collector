@@ -195,6 +195,19 @@ td.m {
   padding: .55rem .25rem .45rem;
 }
 .control-toolbar p { margin: 0; }
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.copy-button {
+  min-height: 1.8rem;
+  padding: .2rem .6rem;
+  font-size: .8rem;
+}
+.copy-status {
+  font-size: .8rem;
+}
 .date-range {
   display: flex;
   align-items: center;

@@ -60,6 +60,40 @@ for (const [target, setting] of Object.entries(fontSettings)) {
   }
 }
 
+function copyWithLegacyApi(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
+}
+
+for (const button of document.querySelectorAll("[data-copy-target]")) {
+  const terminal = document.getElementById(button.dataset.copyTarget);
+  const status = document.getElementById(`${button.dataset.copyTarget}-copy-status`);
+  if (!terminal || !status) continue;
+
+  button.addEventListener("click", async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(terminal.innerText);
+      } else if (!copyWithLegacyApi(terminal.innerText)) {
+        throw new Error("Copy command was rejected.");
+      }
+      status.textContent = "Copied.";
+    } catch {
+      status.textContent = "Unable to copy terminal text.";
+    }
+  });
+}
+
 updateTabLinks();
 
 const lastLineTimes = document.querySelectorAll(".last-line-ago[data-timestamp]");
