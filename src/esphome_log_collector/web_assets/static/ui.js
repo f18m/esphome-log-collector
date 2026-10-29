@@ -75,10 +75,22 @@ function copyWithLegacyApi(text) {
   }
 }
 
+function flashButton(button, ok) {
+  const label = button.dataset.label ?? button.textContent;
+  button.dataset.label = label;
+  clearTimeout(Number(button.dataset.flashTimer));
+  button.textContent = ok ? `${label} ✓` : `${label} failed`;
+  button.classList.toggle("is-success", ok);
+  button.classList.toggle("is-error", !ok);
+  button.dataset.flashTimer = String(setTimeout(() => {
+    button.textContent = label;
+    button.classList.remove("is-success", "is-error");
+  }, 1500));
+}
+
 for (const button of document.querySelectorAll("[data-copy-target]")) {
   const terminal = document.getElementById(button.dataset.copyTarget);
-  const status = document.getElementById(button.getAttribute("aria-describedby"));
-  if (!terminal || !status) continue;
+  if (!terminal) continue;
 
   button.addEventListener("click", async () => {
     try {
@@ -87,17 +99,16 @@ for (const button of document.querySelectorAll("[data-copy-target]")) {
       } else if (!copyWithLegacyApi(terminal.innerText)) {
         throw new Error("Copy command was rejected.");
       }
-      status.textContent = "Copied.";
+      flashButton(button, true);
     } catch {
-      status.textContent = "Unable to copy terminal text.";
+      flashButton(button, false);
     }
   });
 }
 
 for (const button of document.querySelectorAll("[data-download-target]")) {
   const terminal = document.getElementById(button.dataset.downloadTarget);
-  const status = document.getElementById(button.getAttribute("aria-describedby"));
-  if (!terminal || !status) continue;
+  if (!terminal) continue;
 
   button.addEventListener("click", () => {
     try {
@@ -110,9 +121,9 @@ for (const button of document.querySelectorAll("[data-download-target]")) {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      status.textContent = "Downloaded.";
+      flashButton(button, true);
     } catch {
-      status.textContent = "Unable to download terminal text.";
+      flashButton(button, false);
     }
   });
 }
