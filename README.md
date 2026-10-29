@@ -25,7 +25,6 @@ with sanitized configuration snapshots and an optional web UI to browse the logs
 ```bash
 cp examples/config.example.yaml config.yaml          # edit: devices, secrets, retention
 cp docker-compose.example.yml docker-compose.yml     # edit the mounts
-docker compose build
 docker compose run --rm esphome-log-collector check-config   # validate the YAML, then
 docker compose up -d
 docker compose logs -f                                # the collector's own operational log
