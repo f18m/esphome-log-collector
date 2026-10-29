@@ -219,7 +219,7 @@ text filters), exports (`/exports`: create + download), and storage (`/storage`:
 size, retained log-line deletion count, and ESPHome cache size). The tail streams newly stored events to the
 browser and reconnects automatically. The status page is a snapshot rendered on page load; its displayed
 relative time for the last log line ticks forward in the browser, but state changes appear after a reload.
-The Logs and Live Tail terminal windows each have a Copy button for copying their displayed text.
+The Search and Live Tail terminal windows each have a Copy button for copying their displayed text.
 JSON: `/api/status`, `/api/logs`; Server-Sent Events: `/api/tail` (used by `/tail`; supports `after` and
 the `Last-Event-ID` header for resuming). The server is FastAPI on uvicorn, sharing the collector's event
 loop; on shutdown it stops accepting connections, ends tail streams and finishes in-flight requests
@@ -293,7 +293,8 @@ python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt && pip install --no-deps -e .
 python -m pytest            # full suite (uses a fake esphome CLI + a real ESPHome for the option check)
 python -m esphome_log_collector.openapi_cli   # regenerate openapi.json (run from the repo root, after changing web.py)
-docker build -t esphome-log-collector .
+
+make docker-build
 ```
 
 The same common tasks are available as `make install`, `make test`, `make openapi`,

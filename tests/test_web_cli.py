@@ -191,7 +191,7 @@ def test_terminal_download_controls(web):
 def test_log_search_filters_and_pagination(web):
     base, _, _ = web
     page = get(base + "/logs")[1]
-    assert '<a href="/logs" class="active" aria-current="page">Logs</a>' in page
+    assert '<a href="/logs" class="active" aria-current="page">Search</a>' in page
     assert '<div id="logs-rows" class="terminal logs-terminal">' in page
     assert '<table' not in page
     assert page.index("</form>") < page.index('class="control-toolbar"') < page.index('data-font-target="logs"')
@@ -254,6 +254,7 @@ def test_tail_page_and_live_stream(web):
     assert '<button type="button" class="copy-button" data-copy-target="tail-rows"' in body
     assert '<button type="button" class="copy-button" data-download-target="tail-rows" data-download-filename="live-tail.txt"' in body
     assert 'Log Level <select name="level">' in body
+    assert '<label class="text-filter">Text Filter <input name="q" value=""></label>' in body
     assert '<option value="INFO">INFO or higher</option>' in body
     assert 'class="terminal"' in body and "<table" not in body
     assert "[E][x:1]: failure 100%_done" in body
