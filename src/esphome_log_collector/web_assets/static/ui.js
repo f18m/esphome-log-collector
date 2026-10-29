@@ -94,6 +94,29 @@ for (const button of document.querySelectorAll("[data-copy-target]")) {
   });
 }
 
+for (const button of document.querySelectorAll("[data-download-target]")) {
+  const terminal = document.getElementById(button.dataset.downloadTarget);
+  const status = document.getElementById(`${button.dataset.downloadTarget}-download-status`);
+  if (!terminal || !status) continue;
+
+  button.addEventListener("click", () => {
+    try {
+      const file = new Blob([terminal.innerText], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = button.dataset.downloadFilename || "terminal.txt";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      status.textContent = "Downloaded.";
+    } catch {
+      status.textContent = "Unable to download terminal text.";
+    }
+  });
+}
+
 updateTabLinks();
 
 const lastLineTimes = document.querySelectorAll(".last-line-ago[data-timestamp]");

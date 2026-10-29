@@ -10,7 +10,9 @@
     <p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>
     <div class="terminal-actions">
       <button type="button" class="copy-button" data-copy-target="tail-rows" aria-describedby="tail-copy-status">Copy</button>
+      <button type="button" class="copy-button" data-download-target="tail-rows" data-download-filename="live-tail.txt" aria-describedby="tail-download-status">Download</button>
       <span id="tail-copy-status" class="copy-status" aria-live="polite"></span>
+      <span id="tail-download-status" class="copy-status" aria-live="polite"></span>
       <span class="font-controls" role="group" aria-label="Live Tail font size">
         <button type="button" data-font-target="tail" data-font-step="-1" aria-label="Decrease Live Tail font size" title="Decrease Live Tail font size">A−</button>
         <button type="button" data-font-target="tail" data-font-step="1" aria-label="Increase Live Tail font size" title="Increase Live Tail font size">A+</button>

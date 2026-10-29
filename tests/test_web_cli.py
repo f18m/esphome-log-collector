@@ -178,6 +178,16 @@ def test_static_assets(web):
     assert get(base + "/static/missing.js")[0] == 404
 
 
+def test_terminal_download_controls(web):
+    base, _, _ = web
+    script = get(base + "/static/ui.js")[1]
+    assert "[data-download-target]" in script and "new Blob([terminal.innerText]" in script
+    logs = get(base + "/logs")[1]
+    assert 'data-download-target="logs-rows" data-download-filename="logs.txt"' in logs
+    tail = get(base + "/tail")[1]
+    assert 'data-download-target="tail-rows" data-download-filename="live-tail.txt"' in tail
+
+
 def test_log_search_filters_and_pagination(web):
     base, _, _ = web
     page = get(base + "/logs")[1]
@@ -188,6 +198,7 @@ def test_log_search_filters_and_pagination(web):
     assert '<div class="control-toolbar">\n    <p>page 1 ' in page
     assert 'data-font-target="logs"' in page and "Increase log font size" in page
     assert '<button type="button" class="copy-button" data-copy-target="logs-rows"' in page
+    assert '<button type="button" class="copy-button" data-download-target="logs-rows" data-download-filename="logs.txt"' in page
     assert '<option value="">any</option>' in page
     assert '<option value="DEBUG">DEBUG or higher</option>' in page
     assert 'Log Level <select name="level">' in page
@@ -241,6 +252,7 @@ def test_tail_page_and_live_stream(web):
     assert '<p>Stream: <strong id="tail-state" aria-live="polite">Connecting…</strong></p>' in body
     assert 'data-font-target="tail"' in body and "Increase Live Tail font size" in body
     assert '<button type="button" class="copy-button" data-copy-target="tail-rows"' in body
+    assert '<button type="button" class="copy-button" data-download-target="tail-rows" data-download-filename="live-tail.txt"' in body
     assert 'Log Level <select name="level">' in body
     assert '<option value="INFO">INFO or higher</option>' in body
     assert 'class="terminal"' in body and "<table" not in body
