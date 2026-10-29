@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Python 3.12 on Debian bookworm
-ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.12-slim-bookworm
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
 FROM ${PYTHON_IMAGE} AS build
 ARG SETUPTOOLS_SCM_PRETEND_VERSION
