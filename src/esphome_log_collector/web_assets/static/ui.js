@@ -77,7 +77,7 @@ function copyWithLegacyApi(text) {
 
 for (const button of document.querySelectorAll("[data-copy-target]")) {
   const terminal = document.getElementById(button.dataset.copyTarget);
-  const status = document.getElementById(`${button.dataset.copyTarget}-copy-status`);
+  const status = document.getElementById(button.getAttribute("aria-describedby"));
   if (!terminal || !status) continue;
 
   button.addEventListener("click", async () => {
@@ -96,7 +96,7 @@ for (const button of document.querySelectorAll("[data-copy-target]")) {
 
 for (const button of document.querySelectorAll("[data-download-target]")) {
   const terminal = document.getElementById(button.dataset.downloadTarget);
-  const status = document.getElementById(`${button.dataset.downloadTarget}-download-status`);
+  const status = document.getElementById(button.getAttribute("aria-describedby"));
   if (!terminal || !status) continue;
 
   button.addEventListener("click", () => {
