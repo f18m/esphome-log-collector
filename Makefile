@@ -2,7 +2,7 @@
 
 PYTHON ?= python3
 CONFIG ?= config.yaml
-IMAGE ?= esphome-log-collector:latest
+IMAGE ?= esphome-log-collector:local
 VENV_PYTHON := .venv/bin/python
 
 .PHONY: help install test openapi check-config run docker-build compose-build compose-check-config compose-up compose-down compose-logs
@@ -14,7 +14,7 @@ help:
 		'openapi              Regenerate openapi.json' \
 		'check-config         Validate CONFIG (default: config.yaml)' \
 		'run                  Run the collector with CONFIG' \
-		'docker-build         Build IMAGE (default: esphome-log-collector:latest)' \
+		'docker-build         Build IMAGE (default: esphome-log-collector:local)' \
 		'compose-build        Build the Docker Compose service' \
 		'compose-check-config Validate config using Docker Compose' \
 		'compose-up           Start services in the background' \
