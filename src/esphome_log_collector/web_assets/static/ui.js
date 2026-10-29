@@ -60,6 +60,74 @@ for (const [target, setting] of Object.entries(fontSettings)) {
   }
 }
 
+function copyWithLegacyApi(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
+}
+
+function flashButton(button, ok) {
+  const label = button.dataset.label ?? button.textContent;
+  button.dataset.label = label;
+  clearTimeout(Number(button.dataset.flashTimer));
+  button.textContent = ok ? `${label} ✓` : `${label} failed`;
+  button.classList.toggle("is-success", ok);
+  button.classList.toggle("is-error", !ok);
+  button.dataset.flashTimer = String(setTimeout(() => {
+    button.textContent = label;
+    button.classList.remove("is-success", "is-error");
+  }, 1500));
+}
+
+for (const button of document.querySelectorAll("[data-copy-target]")) {
+  const terminal = document.getElementById(button.dataset.copyTarget);
+  if (!terminal) continue;
+
+  button.addEventListener("click", async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(terminal.innerText);
+      } else if (!copyWithLegacyApi(terminal.innerText)) {
+        throw new Error("Copy command was rejected.");
+      }
+      flashButton(button, true);
+    } catch {
+      flashButton(button, false);
+    }
+  });
+}
+
+for (const button of document.querySelectorAll("[data-download-target]")) {
+  const terminal = document.getElementById(button.dataset.downloadTarget);
+  if (!terminal) continue;
+
+  button.addEventListener("click", () => {
+    try {
+      const file = new Blob([terminal.innerText], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = button.dataset.downloadFilename || "terminal.txt";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      flashButton(button, true);
+    } catch {
+      flashButton(button, false);
+    }
+  });
+}
+
 updateTabLinks();
 
 const lastLineTimes = document.querySelectorAll(".last-line-ago[data-timestamp]");

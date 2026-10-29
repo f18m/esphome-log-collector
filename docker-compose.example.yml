@@ -2,7 +2,7 @@
 services:
   esphome-log-collector:
     build: .
-    image: esphome-log-collector:0.2.4
+    image: ghcr.io/f18m/esphome-log-collector:latest
     init: true                    # reaps esphome child processes
     restart: unless-stopped
     stop_grace_period: 30s        # SIGTERM -> graceful shutdown, then SIGKILL

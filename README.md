@@ -25,7 +25,6 @@ with sanitized configuration snapshots and an optional web UI to browse the logs
 ```bash
 cp examples/config.example.yaml config.yaml          # edit: devices, secrets, retention
 cp docker-compose.example.yml docker-compose.yml     # edit the mounts
-docker compose build
 docker compose run --rm esphome-log-collector check-config   # validate the YAML, then
 docker compose up -d
 docker compose logs -f                                # the collector's own operational log
@@ -220,6 +219,7 @@ text filters), exports (`/exports`: create + download), and storage (`/storage`:
 size, retained log-line deletion count, and ESPHome cache size). The tail streams newly stored events to the
 browser and reconnects automatically. The status page is a snapshot rendered on page load; its displayed
 relative time for the last log line ticks forward in the browser, but state changes appear after a reload.
+The Logs and Live Tail terminal windows each have a Copy button for copying their displayed text.
 JSON: `/api/status`, `/api/logs`; Server-Sent Events: `/api/tail` (used by `/tail`; supports `after` and
 the `Last-Event-ID` header for resuming). The server is FastAPI on uvicorn, sharing the collector's event
 loop; on shutdown it stops accepting connections, ends tail streams and finishes in-flight requests
@@ -295,6 +295,20 @@ python -m pytest            # full suite (uses a fake esphome CLI + a real ESPHo
 python -m esphome_log_collector.openapi_cli   # regenerate openapi.json (run from the repo root, after changing web.py)
 docker build -t esphome-log-collector .
 ```
+
+The same common tasks are available as `make install`, `make test`, `make openapi`,
+`make docker-build`, and other targets. Run `make help` to list them; local run and
+configuration-check targets accept `CONFIG=path/to/config.yaml`.
+
+To test local changes:
+
+```bash
+source .venv/bin/activate
+esphome-log-collector run -c /path/to/config.yaml
+```
+
+Open [http://127.0.0.1:8080/logs](http://127.0.0.1:8080/logs) or
+[http://127.0.0.1:8080/tail](http://127.0.0.1:8080/tail) (use the configured `web.port` if it differs).
 
 ## Security notes
 

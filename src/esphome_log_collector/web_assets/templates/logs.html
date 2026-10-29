@@ -12,10 +12,14 @@
   </form>
   <div class="control-toolbar">
     <p>${pager}</p>
-    <span class="font-controls" role="group" aria-label="Log font size">
-      <button type="button" data-font-target="logs" data-font-step="-1" aria-label="Decrease log font size" title="Decrease log font size">A−</button>
-      <button type="button" data-font-target="logs" data-font-step="1" aria-label="Increase log font size" title="Increase log font size">A+</button>
-    </span>
+    <div class="terminal-actions">
+      <button type="button" class="copy-button" data-copy-target="logs-rows">Copy</button>
+      <button type="button" class="copy-button" data-download-target="logs-rows" data-download-filename="logs.txt">Download</button>
+      <span class="font-controls" role="group" aria-label="Log font size">
+        <button type="button" data-font-target="logs" data-font-step="-1" aria-label="Decrease log font size" title="Decrease log font size">A−</button>
+        <button type="button" data-font-target="logs" data-font-step="1" aria-label="Increase log font size" title="Increase log font size">A+</button>
+      </span>
+    </div>
   </div>
 </div>
 <div id="logs-rows" class="terminal logs-terminal">${rows}</div>

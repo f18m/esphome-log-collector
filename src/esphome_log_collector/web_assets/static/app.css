@@ -195,6 +195,27 @@ td.m {
   padding: .55rem .25rem .45rem;
 }
 .control-toolbar p { margin: 0; }
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.copy-button {
+  min-height: 1.8rem;
+  min-width: 5.5rem;
+  padding: .2rem .6rem;
+  font-size: .8rem;
+}
+.copy-button.is-success {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+.copy-button.is-error {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
 .date-range {
   display: flex;
   align-items: center;
