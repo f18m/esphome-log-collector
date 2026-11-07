@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.15"
 
       - name: Install API schema dependencies
         run: python -m pip install fastapi==0.143.0 uvicorn==0.40.0 PyYAML==6.0.3
